@@ -468,27 +468,6 @@ void main(){
 }
 </script>
 
-<script id ='vertShader' type='shader'>#version 300 es
-#include precision.glsl
-
-in vec4 position;
-
-/*------------------------------------------------------------------------
- * "varyings" in WebGL1 change to "out" variables in WebGL2 vertexShaders
- *------------------------------------------------------------------------
- */
-out vec2 pixPos ;
-
-/*========================================================================
- * Main body of the vertexShader
- *========================================================================
- */
-void main() {
-    pixPos = position.xy ;
-    gl_Position = vec4(position.x*2.-1., position.y*2.-1.,0.,1.0);
-}
-</script>
-
 <!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
 <!-- march fragment shader                                               -->
 <!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
@@ -762,7 +741,7 @@ var Emap = new Abubu.Float32Texture(env.width,env.height) ;
 var activate_mask = new Abubu.Float32Texture(env.width,env.height) ;
 var reductionResultS1 = new Abubu.Float32Texture(env.width,1) ;
 var reductionResultS2 = new Abubu.Float32Texture(1,1) ;	
-
+env.FTE = 0. ;
 reductionResultS1.pairable = true ;
 reductionResultS2.pairable = true ;
 activate_mask.pairable = true;
@@ -1015,6 +994,12 @@ function march(){
     smarch.uniforms['inEmap'].value = Emap ;
     smarch.render() ;
     env.time += env.dt ;
+
+    // cal FTE
+    count_activated_cells.render() ;
+    env.reduceS1.render() ;
+    env.reduceS2.render() ;  
+    env.FTE = reductionResultS2.value[0] ;
     //env.time += env.dt*2. ;
 }
 
@@ -1023,11 +1008,7 @@ j=0;
 function run(){
         if (env.running){
             for(var i = 0 ; i<env.skip ; i++){
-                march() ;
-                count_activated_cells.render() ;
-                env.reduceS1.render() ;
-				env.reduceS2.render() ;                
-				console.log(reductionResultS2.value[0])                
+                march() ;              
                 env.usgn.update(env.time) ;
                 //env.ssgn.update(env.time) ;
             }
@@ -1293,11 +1274,10 @@ function createGui(){
     // execution ---------------------------------------------------------
     var exe = panel.addFolder('Execution') ;
     exe.add(env,'time').listen() ;
-    exe.add(env,'skip') ;
+    exe.add(env,'FTE').step(0.001).listen();
     exe.add(env,'initialize') ;
     exe.add(env,'running').listen() ;
     exe.open() ;
-
 }
 
 
