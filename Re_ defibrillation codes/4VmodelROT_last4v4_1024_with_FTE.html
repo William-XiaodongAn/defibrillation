@@ -409,6 +409,19 @@ void main() {
 }
 </script>
 
+<script id ='sampler' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+in vec2 pixPos ;
+uniform sampler2D icolor0 ;
+out vec4 ocolor ;
+
+void main(){
+	ocolor = texture(icolor0,pixPos) ;
+}
+</script>
+
 <script id ='reduceS1' type='shader'>#version 300 es
 precision highp float ;
 precision highp int ;
@@ -738,6 +751,8 @@ var UDmap = new Abubu.Float32Texture(env.width,env.height) ;
 var Emapin = new Abubu.Float32Texture(env.width,env.height) ;
 var Emap = new Abubu.Float32Texture(env.width,env.height) ;
 
+var sampler_texture = new Abubu.FloatRenderTarget(8,8);
+sampler_texture.pairable = true ;
 var activate_mask = new Abubu.Float32Texture(env.width,env.height) ;
 var reductionResultS1 = new Abubu.Float32Texture(env.width,1) ;
 var reductionResultS2 = new Abubu.Float32Texture(1,1) ;	
@@ -943,7 +958,16 @@ var count_activated_cells = new Abubu.Solver({
                 ocolor : { location : 0, target : activate_mask }
         }
     } ) ;
-
+env.sampler = new Abubu.Solver({
+    fragmentShader : source( 'sampler' ) ,
+    uniforms:{
+        icolor0 : { type : 't', value : fcolor } ,
+    } ,
+    targets:{
+        ocolor : { location : 0 , target : sampler_texture } ,
+    }
+} ) ;   
+    
 env.reduceS1 = new Abubu.Solver({
     fragmentShader : source( 'reduceS1' ),
     uniforms : { 
@@ -985,7 +1009,7 @@ var efmap = new Abubu.Solver( {
 // march the solution for two time steps
 function march(){
     efmap.uniforms['currtime'].value = env.time;
-  	efmap.render() ;
+  	//efmap.render() ;
     fmarch.uniforms['currtime'].value = env.time ;
     fmarch.uniforms['inEmap'].value = Emap ;
     fmarch.render() ;
@@ -1005,24 +1029,71 @@ function march(){
 
 
 j=0;
+
+env.capture_sample = false;
+var sample_interval = 10 // 10 dt = 0.15 ms
+var capture_end_time = 1000 // ms
+var csv_download = "";
+
 function run(){
         if (env.running){
             for(var i = 0 ; i<env.skip ; i++){
                 march() ;              
+                
+                /*
+                if (env.time<1000){
+                    csv_download += ',' + env.FTE
+                }
+                if (env.running && env.time>1000){
+                    saveCsvFile(csv_download);
+                    env.running = false
+                }
+                */
+                if (env.capture_sample && (j % sample_interval) == 0) {
+                    env.sampler.render() ;
+					csv_download += ',' + sampler_texture.value ;
+                    csv_download += ';'
+                }
+                if (env.capture_sample && env.time > capture_end_time){
+                    env.capture_sample = false;
+                    saveCsvFile(csv_download);
+                    csv_download = "";
+                    // programmatically trigger the capture_sample control to reset
+                    if (env.capture_sample_control && env.capture_sample_control.updateDisplay) {
+                        env.capture_sample_control.updateDisplay();
+                    }
+                }
+
                 env.usgn.update(env.time) ;
                 //env.ssgn.update(env.time) ;
+                j=j+1;
             }
         }
         splot.render() ;
         plot.render() ;
-        if((j % 5)==0){
+        if((Math.floor(j/env.skip) % 5)==0){
 		 plotEx.render() ;
 		 plotEy.render() ;
         }
-        j=j+1;
+        
         requestAnimationFrame(run) ;
 }
+function saveCsvFile(data) {
+	var blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+	var url = URL.createObjectURL(blob);
 
+	var link = document.createElement('a');
+	link.setAttribute('href', url);
+
+	var name_download = 'sample_8*8.csv';
+	link.setAttribute('download', name_download);
+
+	document.body.appendChild(link);
+	link.click();
+
+	document.body.removeChild(link);
+	URL.revokeObjectURL(url);
+}
 
 // click solver ..........................................................
 var click = new Abubu.Solver({
@@ -1275,6 +1346,9 @@ function createGui(){
     var exe = panel.addFolder('Execution') ;
     exe.add(env,'time').listen() ;
     exe.add(env,'FTE').step(0.001).listen();
+    env.capture_sample_control = exe.add(env,'capture_sample').onChange(function(){
+        capture_end_time = env.time + 1000 ;
+    }) ;
     exe.add(env,'initialize') ;
     exe.add(env,'running').listen() ;
     exe.open() ;
