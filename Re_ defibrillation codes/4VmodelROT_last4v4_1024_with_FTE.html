@@ -1031,7 +1031,7 @@ function march(){
 j=0;
 
 env.capture_sample = false;
-var sample_interval = 10 // 10 dt = 0.15 ms
+var sample_interval = 10 // 10 dt*2 = 0.15*2 ms
 var capture_end_time = 1000 // ms
 var csv_download = "";
 
@@ -1049,7 +1049,17 @@ function run(){
                     env.running = false
                 }
                 */
-                if (env.capture_sample && (j % sample_interval) == 0) {
+
+                // now i want to run env.saveCsvFile every 25 ms from 250ms to 1000ms
+                /*
+                if (env.time >= 250 && env.time <= 1000 && (env.time% 25 <= env.dt*2) ) {
+                    // avoid multiple downloads within small range
+                    env.csvFileName = 'fcolor_' + Math.floor(env.time) + '.csv' ; //the name should reflect the time
+                    env.saveCsvFile() ;
+                }*/
+
+                if (env.capture_sample && (j % sample_interval) == 0) { // the recording dt is 0.15*2*10 = 3 ms
+                    console.log(env.time);
                     env.sampler.render() ;
 					csv_download += ',' + sampler_texture.value ;
                     csv_download += ';'

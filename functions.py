@@ -59,7 +59,7 @@ def load_voltage(path_to_csv):
 
     return voltage
 
-def get_APD_DI_BCL(arr, APD_percentage = 0.3): # arr is 2D array, each row is a time series of one pixel
+def get_APD_DI_BCL(arr,dt, APD_percentage = 0.3): # arr is 2D array, each row is a time series of one pixel
     APD = []
     for i in range(len(arr)):
         APD.append([])
@@ -81,13 +81,13 @@ def get_APD_DI_BCL(arr, APD_percentage = 0.3): # arr is 2D array, each row is a 
                 start_apd = False
                 APD_end_error = linear_interpolation(0,-1,arr[i][j],arr[i][j-1],APD_percentage)
                 
-                APD_value += (APD_start_error + APD_end_error) * 4                
+                APD_value += (APD_start_error + APD_end_error) * dt                
                 APD[i].append(APD_value)
                 APD_value = 0
                 APD_start_error = -100
                 APD_end_error = -100
             if start_apd == True:
-                APD_value += 4
+                APD_value += dt
 
     # the first DI is either not-complete or missing, so do not use it in restitutional curve
 
@@ -108,13 +108,13 @@ def get_APD_DI_BCL(arr, APD_percentage = 0.3): # arr is 2D array, each row is a 
                 start_di = False
                 DI_end_error = linear_interpolation(1,0,arr[i][j],arr[i][j-1],APD_percentage)
                 DI_end_error = 1 - DI_end_error
-                DI_value += (DI_start_error + DI_end_error) * 4                 
+                DI_value += (DI_start_error + DI_end_error) * dt                 
                 DI[i].append(DI_value)
                 DI_value = 0
                 DI_start_error = -100
                 DI_end_error = -100 
             if start_di == True:
-                DI_value += 4
+                DI_value += dt
 
         if arr[i][-1] > APD_percentage:
             try:

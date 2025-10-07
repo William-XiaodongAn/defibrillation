@@ -1,0 +1,1444 @@
+<!doctype html>
+<html>
+    <head>
+        <script src='http://abubujs.org/libs/Abubu.latest.js'
+            type='text/javascript'></script>
+            </head>
+
+            <!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+            <!-- body of the html page                                             -->
+            <!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+            <body>
+            <canvas id=canvas_1 width=512 height=512 style="border: 1px solid black">
+            Your browser doesn't support HTML5.0
+            </canvas>
+            <canvas id=canvas_2 width=256 height=256 style="border: 1px solid black">
+            Your browser doesn't support HTML5.0
+            </canvas>
+            <canvas id=canvas_3 width=256 height=256 style="border: 1px solid black">
+            Your browser doesn't support HTML5.0
+            </canvas>
+            <canvas id=canvas_4 width=256 height=256 style="border: 1px solid black">
+            Your browser doesn't support HTML5.0
+            </canvas>
+            <canvas id=canvas_5 width=256 height=256 style="border: 1px solid black">
+            Your browser doesn't support HTML5.0
+            </canvas>
+
+        <p style="position: absolute; top: 540px; width:100%; text-align: left"> Select a mask file : <input type='file' id="myFile"></p>
+        <button style="position: absolute;top: 600px" onclick='processFile()'>Load & Show</button>
+
+        <p style="position: absolute; top: 640px; width:100%; text-align: left"> Select a IC file : <input type='file' id="myFileIC"></p>
+        <button style="position: absolute;top: 700px" onclick='processFile2()'>Load IC</button>
+
+        <p style="position: absolute; top: 740px; width:100%; text-align: left"> Select a E file : <input type='file' id="myFileE"></p>
+        <button style="position: absolute;top: 800px" onclick='processFileE()'>Load E</button>
+
+
+
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- E field fragment shader                                               -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+
+<script id='efield' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+in vec2 cc;
+uniform sampler2D Einit;
+uniform float currtime,stim_period,omega,Etimeact,Theta0, Lx, Emax;
+
+layout (location = 0) out vec4 Ecolor ; //r=modulus g=theta
+
+#define Ex		  color.r
+#define Ey		  color.g
+#define E0        color.b
+#define ETheta    color.a
+#define PI		  3.14159265359
+// Main body of the shader
+void main() {
+    vec4 color = vec4(0.) ;
+    vec2 ccr;
+
+    float Exi,Eyi,E0i,Thi;
+
+
+    //float theta=PI*450.0/180.0;
+    
+    if(mod(currtime,stim_period)<Etimeact){
+    
+        float theta=Theta0+(omega/1000.)*mod(currtime,stim_period);
+        
+        
+        float lm=-(sqrt(2.0)-1.0)/2.0;
+        float lp=(sqrt(2.0)+1.0)/2.0;
+
+        //float xsc=cc.x*(lp-lm)+lm;
+        //float ysc=cc.y*(lp-lm)+lm;
+        
+     /*   float xsc=(cc.x-lm)/(lp-lm);
+        float ysc=(cc.y-lm)/(lp-lm);
+        float xr=xsc*cos(-theta)-ysc*sin(-theta);
+        float yr=xsc*sin(-theta)+ysc*cos(-theta);*/
+     
+
+        float xr=(cc.x-0.5)*cos(-theta)-(cc.y-0.5)*sin(-theta)+0.5;
+        float yr=(cc.x-0.5)*sin(-theta)+(cc.y-0.5)*cos(-theta)+0.5;
+        float xsc=(xr-lm)/(lp-lm);
+        float ysc=(yr-lm)/(lp-lm);
+
+
+
+        //if(xr >=0.0 && xr <=1.0 && yr >=0.0 && yr <=1.0){
+        if(xsc >=0.0 && xsc <=1.0 && ysc >=0.0 && ysc <=1.0){
+            ccr.x=xsc;
+            ccr.y=ysc;
+            E0i=texture(Einit,ccr).b;
+            Thi=texture(Einit,ccr).a;
+            //Ex=Emax*(Exi*cos(theta)-Eyi*sin(theta));
+            //Ey=Emax*(Exi*sin(theta)+Eyi*cos(theta));
+            Ex=Emax*E0i*cos(Thi+theta);
+            Ey=Emax*E0i*sin(Thi+theta);
+        }
+
+
+        } else{
+            Ex=0.0;
+            Ey=0.0;
+        }
+
+
+        E0=sqrt(pow(Ex,2.0)+pow(Ey,2.0));
+        ETheta=atan(Ey,Ex);
+
+		Ecolor=color;
+
+    return ;
+}
+</script>
+
+
+
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- init LapLR shader                                               -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+
+
+<script id='LapLR' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+uniform sampler2D pMap    ;  // texture for structure
+in vec2 pixPos ;
+
+layout (location = 0) out vec4 colorLR;
+
+void main()
+{
+    float r, g, b, a ;                      /* rgba values               */
+
+    /* Assume that L = r, R = g, C_LR = b, E_x = a */
+    r =  1.0 ;
+    g =  1.0 ;
+    b = -2.0 ;
+ 	  a =  0.0 ;
+
+    vec2  size  = vec2(textureSize(pMap, 0)) ;
+
+    vec2   w, e, n, s ;
+	  w = pixPos + vec2( -1.0, 0.0  )/vec2(size.x,size.y) ;
+    e = pixPos + vec2(  1.0, 0.0  )/vec2(size.x,size.y) ;
+	  n = pixPos + vec2(  0.0, 1.0  )/vec2(size.x,size.y) ;
+    s = pixPos + vec2(  0.0,-1.0  )/vec2(size.x,size.y) ;
+
+    float C, L, R ;
+	  C = texture( pMap, pixPos ).r ;
+	  L = texture( pMap, w      ).r ;
+	  R = texture( pMap, e      ).r ;
+
+    /* No tissue at pixpos */
+    if ( C < 0.5 ){
+       r = 0.0 ;
+		   g = 0.0 ;
+		   b = 0.0 ;
+		   a = 0.0 ;
+		}
+
+	/*  L R = 1 0 */
+		if ( C > 0.5 && L > 0.5 && R < 0.5 ){
+	      r =  2.0 ;
+				g =  0.0 ;
+				b = -2.0 ;
+				a =  1.0 ;
+	     }
+
+		/*  L R = 0 1 */
+		if ( C > 0.5 && L < 0.5 && R > 0.5 ){
+	      r =  0.0 ;
+				g =  2.0 ;
+				b = -2.0 ;
+				a = -1.0 ;
+	     }
+
+		 /*  L R = 0 0 */
+		if ( C > 0.5 && L < 0.5 && R < 0.5 ){
+	      r =  0.0 ;
+				g =  0.0 ;
+				b =  0.0 ;
+				a =  0.0 ;
+	     }
+
+    colorLR = vec4(r,g,b,a);
+}
+</script>
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- init LapUD shader                                               -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<script id='LapUD' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+uniform sampler2D pMap    ;  // texture for structure
+in vec2 pixPos ;
+
+layout (location = 0) out vec4 colorUD;
+
+
+/*=========================================================================
+ * Main body of Laplacian matrix up down shader
+ *=========================================================================
+ */
+void main()
+{
+    float r, g, b, a ;                      /* rgba values               */
+
+    /* Assume that U = r, D = g, C_UD = b, E_y = a */
+    r =  1.0 ;
+    g =  1.0 ;
+    b = -2.0 ;
+	  a =  0.0 ;
+
+    vec2  size  = vec2(textureSize(pMap, 0)) ;
+
+
+    vec2   w, e, n, s ;
+	  w = pixPos + vec2( -1.0, 0.0  )/vec2(size.x,size.y) ;
+    e = pixPos + vec2(  1.0, 0.0  )/vec2(size.x,size.y) ;
+	  n = pixPos + vec2(  0.0, 1.0  )/vec2(size.x,size.y) ;
+    s = pixPos + vec2(  0.0,-1.0  )/vec2(size.x,size.y) ;
+
+    float C, U, D ;
+		C = texture( pMap, pixPos ).r ;
+		U = texture( pMap, n      ).r ;
+		D = texture( pMap, s      ).r ;
+
+    /* No tissue at pixpos */
+    if ( C < 0.5 ){
+       r = 0.0 ;
+		   g = 0.0 ;
+		   b = 0.0 ;
+		   a = 0.0 ;
+		}
+
+		/* U D = 1 0 */
+		if ( C > 0.5 && U > 0.5 && D < 0.5 ){
+	      r =  2.0 ;
+				g =  0.0 ;
+				b = -2.0 ;
+				a = -1.0 ;
+	     }
+
+		/* U D = 0 1 */
+		if ( C > 0.5 && U < 0.5 && D > 0.5 ){
+	      r =  0.0 ;
+				g =  2.0 ;
+				b = -2.0 ;
+				a =  1.0 ;
+	     }
+
+		 /* L R = 0 0 */
+		if ( C > 0.5 && U < 0.5 && D < 0.5 ){
+	      r =  0.0 ;
+				g =  0.0 ;
+				b =  0.0 ;
+				a =  0.0 ;
+	     }
+
+
+    colorUD = vec4(r,g,b,a);
+}
+</script>
+
+
+
+<!-- ***************************************************************** -->
+<script id='click' type='x-shader-fragment'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+uniform sampler2D   inTexture ;
+uniform vec2    clickPosition ;
+uniform float   clickRadius ;
+
+in vec2 cc, pixPos ;
+
+layout (location = 0) out vec4 ocolor ;
+
+#define u   color.r
+
+// Main body of the shader
+void main() {
+    vec2  size  = vec2(textureSize(inTexture, 0)) ;
+
+    // read the color of the pixel .......................................
+    vec4 color = texture( inTexture , cc ) ;
+
+    if ( length(clickPosition - cc )< clickRadius ){
+        u = 1. ;
+    }
+
+    // output the color of the pixel .....................................
+    ocolor = color ;
+    return ;
+}
+
+</script><!-- end of click shader's source code -->
+
+
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- init Het fragment shader                                               -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<script id='initH' type='shader'>#version 300 es
+    precision highp float ;
+    precision highp int ;
+
+    in vec2 cc, pixPos ;
+    uniform float sizex, sizey;
+
+    layout (location = 0) out vec4 color3 ;
+
+
+    // Main body of the shader
+    void main() {
+        vec4 colorH = vec4(0.) ;
+
+        //if ( length(cc-0.5)<0.1 || cc.x < 1.0/sizex || cc.x > (1.0 - 1.0/sizex) || cc.y < 1.0/sizey || cc.y > (1.0 - 1.0/sizey)){
+        if ( length(cc-0.5)<0.1){
+            colorH.r = 0.;
+            colorH.g = 0.;
+            colorH.b = 0.;
+            colorH.a = 0.;
+        }else{
+            colorH.r = 1.;
+            colorH.g = 0.;
+            colorH.b = 0.;
+            colorH.a = 0.;
+        }
+
+
+        color3 = colorH ;
+
+        return ;
+    }
+</script>
+
+
+
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- init fragment shader                                               -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<script id='init' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+in vec2 cc, pixPos ;
+
+layout (location = 0) out vec4 color1 ;
+layout (location = 1) out vec4 color2 ;
+//layout (location = 2) out vec4 color3 ;
+
+
+// Main body of the shader
+void main() {
+    vec4 color = vec4(0.) ;
+    vec4 Ecolor = vec4(0.) ;
+    
+    color.r = 0. ;
+	color.g = 1. ;
+	color.b = 1. ;
+    color.a = 0.2 ;
+    
+    /*Ecolor.r = 0. ;
+    Ecolor.g = 0. ;
+    Ecolor.b = 0. ;
+    Ecolor.a = 0. ;*/
+
+	color1 = color ;
+    color2 = color ;
+    //color3 = Ecolor ;
+
+    return ;
+}
+</script>
+
+<script id ='activate_mask' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+uniform float threshold;
+uniform sampler2D inTexture ;
+
+in vec2 cc, pixPos ;
+
+layout (location = 0) out vec4 ocolor ;
+
+#define u  color.r
+
+void main() {
+    vec4 color = texture( inTexture , cc ) ;
+    if (u>threshold){
+        ocolor = vec4(1.,0.,0.,0.);
+    }
+    else{
+        ocolor = vec4(0.,0.,0.,0.);
+    }
+}
+</script>
+
+<script id ='sampler' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+in vec2 pixPos ;
+uniform sampler2D icolor0 ;
+out vec4 ocolor ;
+
+void main(){
+	ocolor = texture(icolor0,pixPos) ;
+}
+</script>
+
+<script id ='reduceS1' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+in vec2 pixPos ;
+
+uniform sampler2D inTexture ;
+
+out vec4 ocolor ;
+
+#define u   color.r
+
+void main(){
+    ivec2 isize = textureSize( inTexture, 0) ;
+    vec4 color ;
+
+    float sum = 0. ;
+    
+    for(int j=0 ; j<isize.y; j++){
+        int i = int(floor(pixPos.x*float(isize.x))) ;
+        color = texelFetch( inTexture, ivec2(i,j),0 ) ;
+        if ( u>0.3 ){
+            sum +=1. ;
+        }
+    }
+
+    ocolor = vec4(sum/float(isize.x*isize.y)) ;
+	return;
+	
+}
+</script>
+
+<script id ='reduceS2' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+in vec2 pixPos ;
+
+uniform sampler2D inTexture ;
+
+out vec4 ocolor ;
+
+void main(){
+    ivec2 isize = textureSize( inTexture, 0) ;
+    vec4 color ;
+
+    float sum = 0. ;
+    
+    for(int i=0; i<isize.x ;i++){
+        color = texelFetch( inTexture, ivec2(i,0),0 ) ;
+        sum += color.x ;
+    }
+
+    ocolor = vec4(sum) ;
+	return;
+	
+}
+</script>
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- march fragment shader                                               -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<script id='march' type='shader'>#version 300 es
+precision highp float ;
+precision highp int ;
+
+uniform sampler2D   inTexture ;
+uniform sampler2D   inLRmap ;
+uniform sampler2D   inUDmap ;
+uniform sampler2D   inEmap ;
+uniform sampler2D   inTissue ;
+uniform float       dt, diffCoef, currtime, Lx, Ly,Temp;
+
+in vec2 cc, pixPos ;
+
+layout (location = 0) out vec4 ocolor ;
+
+
+#define u       color.r
+#define v       color.g
+#define w       color.b
+#define s       color.a
+
+float Tanh(float x){
+    if ( x<-3.0){
+        return -1.0 ;
+    } else if (x>3.0){
+        return 1.0 ;
+    } else {
+        return x*(27.0 + x*x)/(27.0+9.0*x*x) ;
+    }
+}
+
+// a mod b
+float rem(float a,float b){
+        return a - (b * floor(a/b));
+}
+
+
+// Main body of the shader
+void main() {
+    vec2  size  = vec2(textureSize(inTexture, 0)) ;
+    float dx    = Lx/size.x ;
+    float dy    = Ly/size.y ;
+
+
+    vec2 ii = vec2(1.,0.)/size ;
+    vec2 jj = vec2(0.,1.)/size ;
+    vec2 ed = cc + ii;
+    vec2 wd = cc - ii;
+    vec2 nd = cc + jj;
+    vec2 sd = cc - jj;
+
+
+    // read the color of the pixel .......................................
+    vec4 color = texture( inTexture , cc ) ;
+
+
+		vec4 Ma_LR = texture(inLRmap , cc ) ;
+		vec4 Ma_UD = texture(inUDmap , cc ) ;
+
+
+		float al  = Ma_LR.r ;
+		float ar  = Ma_LR.g ;
+		float acx = Ma_LR.b ;
+		float aex = Ma_LR.a ;
+
+		float au  = Ma_UD.r ;
+		float ad  = Ma_UD.g ;
+		float acy = Ma_UD.b ;
+		float aey = Ma_UD.a ;
+
+		float inTiss=texture(inTissue , cc ).r ;
+
+	 if(inTiss==1.0){
+
+
+    float Ex= texture(inEmap, cc).r;
+    float Ey= texture(inEmap, cc).g;
+
+    float laplacian;
+
+
+	  laplacian =(   ( al*texture( inTexture , wd ).r
+						+acx*texture( inTexture , cc ).r
+						+ar*texture( inTexture , ed ).r
+						+aex*2.0*Ex*dx
+					  ) / (dx*dx)
+				    +  ( au*texture( inTexture , nd ).r
+						+acy*texture( inTexture , cc ).r
+						+ad*texture( inTexture , sd ).r
+		                +aey*2.0*Ey*dy
+					  ) / (dy*dy) );
+
+
+   float dudt = diffCoef*laplacian ;
+
+
+
+    float uo=0.0;
+    float uu=1.56;
+    float tetav=0.3;
+    float tetaw=0.13;
+    float tetavm=0.2;
+    float tetao=0.006;
+    float tvm1=55.;
+    float tvm2=40.;
+    float tvp=1.4506;
+    float twm1=40.;
+    float twm2=115.;
+    float kwm=20.;
+    float kwp=8.;
+    float uwm=0.00615;
+    float uwp=0.0005;
+    float tfi=0.10;
+    float to1=470.;
+    float to2=6.;
+    float twp1=175.;
+    float twp2=230.;
+    float tso1=40.;
+    float tso2=1.2;
+    float kso=2.;
+    float uso=0.65;
+    float ts1=2.7342;
+    float ts2=2.;
+    float ks=2.0994;
+    float us=0.9087;
+    float tsi=2.9013;
+    float twinf=0.0273;
+    float winfstar=0.78;
+    
+    float T0=37.0;
+    float q10v=1.5;
+    float q10w=2.45;
+    float q10s=1.5;
+    float betafi=0.065;
+    float betaso=0.008;
+    float betasi=0.008;
+    float phiv = pow(q10v,(Temp-T0)/10.0);
+    float phiw = pow(q10w,(Temp-T0)/10.0);
+    float phis = pow(q10s,(Temp-T0)/10.0);
+    float etafi = 1.0+betafi*(Temp-T0);
+    float etaso = 1.0+betaso*(Temp-T0);
+    float etasi = 1.0+betasi*(Temp-T0);
+
+
+    float huv = step(tetav, u) ;
+    float huvm = step(tetavm, u) ;
+    float huw = step(tetaw, u) ;
+    float huo = step(tetao, u) ;
+
+    float tvm=(1.-huvm)*tvm1+huvm*tvm2;
+    float twp=twp1+0.5*(twp2-twp1)*(1.+tanh(kwp*(u-uwp)));
+    float twm=twm1+0.5*(twm2-twm1)*(1.+tanh(kwm*(u-uwm)));
+    float tso=tso1+0.5*(tso2-tso1)*(1.+tanh(kso*(u-uso)));
+
+
+    float ts=(1.-huw)*ts1+huw*ts2;
+    float to=(1.-huo)*to1+huo*to2;
+
+    float vinf=(1.-huvm);
+    float winf=(1.-huo)*(1.-u/twinf)+huo*winfstar;
+    float sinf=(1.+tanh(ks*(u-us)))/2.;
+    
+    v = (1.0-huv)*(vinf-(vinf-v)*exp(-phiv*dt/tvm)) + huv*v*exp(-phiv*dt/tvp);
+    w = (1.0-huw)*(winf-(winf-w)*exp(-phiw*dt/twm)) + huw*w*exp(-phiw*dt/twp);
+    s = sinf-(sinf-s)*exp(-phis*dt/ts);
+
+    float jfi=etafi*(-v*huv*(u-tetav)*(uu-u)/tfi);
+    float jso=etaso*((u-uo)*(1.-huw)/to+huw/tso);
+    float jsi=etasi*(-huw*w*s/tsi);
+
+    float jsum=jfi+jso+jsi;
+    dudt -= jsum;
+
+
+    //float dvdt=(1.-huv)*(vinf-v)/tvm-huv*v/tvp;
+    //float dwdt=(1.-huw)*(winf-w)/twm-huw*w/twp;
+    //float dsdt=(sinf-s)/ts;
+
+    u += dt*dudt;
+    //v += dt*dvdt;
+    //w += dt*dwdt;
+    //s += dt*dsdt;
+
+
+    if(u>2.8) u=2.8;
+
+    if(u<-1.0) u=-1.0;
+
+	}else{
+		color=vec4(0.);
+	}
+
+
+
+    // output the color of the pixel .....................................
+    ocolor = color ;
+
+    return ;
+}
+</script>
+
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<!-- Main script -->
+<!--&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&-->
+<script>
+// get the shader source by its id ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function source(id){
+    return document.getElementById(id).text ;
+}
+
+// Get the canvas ........................................................
+var canvas_1 = document.getElementById('canvas_1') ;
+canvas_1.style.left = "10px";
+canvas_1.style.top = "10px";
+canvas_1.style.position = "absolute";
+var canvas_2 = document.getElementById('canvas_2') ;
+canvas_2.style.left = "532px";
+canvas_2.style.top = "280px";
+canvas_2.style.position = "absolute";
+var canvas_3 = document.getElementById('canvas_3') ;
+canvas_3.style.left = "800px";
+canvas_3.style.top = "10px";
+canvas_3.style.position = "absolute";
+var canvas_4 = document.getElementById('canvas_4') ;
+canvas_4.style.left = "800px";
+canvas_4.style.top = "280px";
+canvas_4.style.position = "absolute";
+var canvas_5 = document.getElementById('canvas_5') ;
+canvas_5.style.left = "532px";
+canvas_5.style.top = "10px";
+canvas_5.style.position = "absolute";
+
+
+
+// Object to be used for interactions ....................................
+var env = {
+        dt : 0.015 ,
+        diffCoef :0.001,
+        time : 0 ,
+		Lx : 10.,
+		Ly : 10.,
+        running : false ,
+		width : 1024,
+		height : 1024,
+		clickRadius : 0.06 ,
+		clickPosition  : [0.,0.] ,
+		Etimeact : 50.,
+		Theta0 : 0.,
+		omega : 10., // rad/s
+		stim_period : 118.,
+		Emax : 10.,
+        Temp : 37.0,
+		skip : 40,
+  } ;
+
+
+
+
+// defining the textures .................................................
+var fcolor = new Abubu.Float32Texture(env.width,env.height) ;
+var scolor = new Abubu.Float32Texture(env.width,env.height) ;
+var hcolor = new Abubu.Float32Texture(env.width,env.height) ;
+var LRmap = new Abubu.Float32Texture(env.width,env.height) ;
+var UDmap = new Abubu.Float32Texture(env.width,env.height) ;
+var Emapin = new Abubu.Float32Texture(env.width,env.height) ;
+var Emap = new Abubu.Float32Texture(env.width,env.height) ;
+
+var sampler_texture = new Abubu.FloatRenderTarget(8,8);
+sampler_texture.pairable = true ;
+var activate_mask = new Abubu.Float32Texture(env.width,env.height) ;
+var reductionResultS1 = new Abubu.Float32Texture(env.width,1) ;
+var reductionResultS2 = new Abubu.Float32Texture(1,1) ;	
+env.FTE = 0. ;
+reductionResultS1.pairable = true ;
+reductionResultS2.pairable = true ;
+activate_mask.pairable = true;
+
+// Setup a solver ........................................................
+var init = new Abubu.Solver( {
+    fragmentShader  : source('init'),
+    targets : {
+        color1 : { location :0, target : fcolor  } ,
+        color2 : { location :1, target : scolor  } ,
+        //color3 : { location :2, target : Emapin  } ,
+    }
+} ) ;
+init.render();
+
+
+var inithet = new Abubu.Solver( {
+      fragmentShader  : source('initH'),
+        uniforms : {
+                 sizex   : { type : 'f', value : env.width      } ,
+                 sizey   : { type : 'f', value : env.height      } ,
+        } ,
+      targets : {
+        color3 : { location :0, target : hcolor  } ,
+   }
+} ) ;
+inithet.render() ;
+
+
+
+var laplr = new Abubu.Solver( {
+    fragmentShader  : source('LapLR'),
+		uniforms : {
+						pMap   : { type : 't', value : hcolor      } ,
+		} ,
+		targets : {
+						colorLR : { location : 0, target : LRmap }
+		}
+} ) ;
+laplr.render() ;
+
+var lapud = new Abubu.Solver( {
+    fragmentShader  : source('LapUD'),
+		uniforms : {
+						pMap   : { type : 't', value : hcolor      } ,
+		} ,
+		targets : {
+						colorUD : { location : 0, target : UDmap }
+		}
+} ) ;
+lapud.render() ;
+
+
+
+
+// post processing .......................................................
+var plot = new Abubu.Plot2D({
+    target : fcolor,   /* the texture to visualize             */
+    channel : 'r',              /* the channel of interest:
+                                        can be : 'r', 'g', 'b', or 'a'
+                                        defualt value is 'r'            */
+    minValue : -1.0 ,              /* minimum value on the colormap        */
+    maxValue : 1.0 ,             /* maximum value on the colormap        */
+    colorbar : true ,           /* if you need to show the colorbar     */
+    probeVisible : true ,
+    canvas : canvas_1 ,         /* the canvas to draw on                */
+}) ;
+plot.init() ;   /* initialize the plot */
+plot.render() ;
+
+var plotEx = new Abubu.Plot2D({
+    target : Emap,   /* the texture to visualize             */
+    channel : 'r',              /* the channel of interest:
+                                        can be : 'r', 'g', 'b', or 'a'
+                                        defualt value is 'r'            */
+    minValue : -1.0*env.Emax*0.3 ,              /* minimum value on the colormap        */
+    maxValue : 1.0*env.Emax*0.3 ,             /* maximum value on the colormap        */
+    colorbar : true ,           /* if you need to show the colorbar     */
+    canvas : canvas_3 ,         /* the canvas to draw on                */
+}) ;
+plotEx.init() ;   /* initialize the plot */
+
+plotEx.addMessage(
+'Ex map', 0.01,0.05,{
+font : 'Bold 10pt Arial' ,
+align: 'left',
+style: "#ff0000" ,
+} ) ;
+
+var plotEy = new Abubu.Plot2D({
+    target : Emap,   /* the texture to visualize             */
+    channel : 'g',              /* the channel of interest:
+                                        can be : 'r', 'g', 'b', or 'a'
+                                        defualt value is 'r'            */
+    minValue : -1.0*env.Emax*0.3,              /* minimum value on the colormap        */
+    maxValue : 1.0*env.Emax*0.3 ,             /* maximum value on the colormap        */
+    colorbar : true ,           /* if you need to show the colorbar     */
+    canvas : canvas_4 ,         /* the canvas to draw on                */
+}) ;
+plotEy.init() ;   /* initialize the plot */
+
+plotEy.addMessage(
+'Ey map', 0.01,0.05,{
+font : 'Bold 10pt Arial' ,
+align: 'left',
+style: "#ff0000" ,
+} ) ;
+
+
+
+
+var splot = new Abubu.SignalPlot({
+noPltPoints : 1024, //1024, // number of sample points
+grid : 'on',
+nx   : 4 , // number of division in x
+ny   : 5 , // ... in y
+
+xticks : { mode : 'auto', unit : 'ms', font : '11pt Times' } ,
+yticks : { mode : 'auto', unit : '' , font : '12pt Times',precision : 1  } ,
+
+canvas : canvas_2,
+} ) ;
+
+
+splot.addMessage(
+'Signal at the probe', 0.5,0.05,{
+font : 'Bold 12pt Arial' ,
+align: 'center',
+style: "#ff0000" ,
+} ) ;
+
+env.usgn = splot.addSignal( fcolor, {
+channel : 'r',
+minValue : -1.5,
+maxValue : 3.5 ,
+restValue : 0 ,
+color : [ 1.,0.,0.0 ],
+visible : true ,
+timewindow : 1000 ,
+probePosition : [0.5,0.5]
+} ) ;
+
+/*env.ssgn = splot.addSignal( fcolor, {
+                           channel : 'a',
+                           minValue : -1.0,
+                           maxValue : 5.0 ,
+                           restValue : 0 ,
+                           color : [ 0.,0.,1.0 ],
+                           visible : true ,
+                           timewindow : 1000 ,
+                           probePosition : [0.5,0.5]
+                           } ) ;
+
+splot.init() ;*/
+
+
+function marchUniforms(_inTexture,_inLRmap,_inUDmap, _inEmap, _inTissue){
+    this.inTexture          = { type : 't', value : _inTexture          } ;
+ 	this.inLRmap            = { type : 't', value : _inLRmap          } ;
+ 	this.inUDmap            = { type : 't', value : _inUDmap          } ;
+ 	this.inEmap             = { type : 't', value : _inEmap          } ;
+    this.inTissue           = { type : 't', value : _inTissue          } ;
+    this.dt                 = { type : 'f', value : env.dt              } ;
+    this.diffCoef           = { type : 'f', value : env.diffCoef        } ;
+    this.currtime           = { type : 'f', value : env.time          } ;
+	this.Lx                 = { type : 'f', value : env.Lx          } ;
+	this.Ly                 = { type : 'f', value : env.Ly          } ;
+    this.Temp               = { type : 'f', value : env.Temp          } ;
+    return this ;
+}
+
+
+
+
+// marching steps ........................................................
+var fmarch = new Abubu.Solver({
+        fragmentShader : source( 'march' ) ,
+				  uniforms : new marchUniforms( fcolor,LRmap,UDmap,Emap,hcolor ) ,
+        targets : {
+                ocolor : { location : 0, target : scolor }
+        }
+    } ) ;
+
+var smarch = new Abubu.Solver({
+        fragmentShader : source( 'march' ) ,
+  		  uniforms : new marchUniforms( scolor,LRmap,UDmap,Emap,hcolor  ) ,
+        targets : {
+                ocolor : { location : 0, target : fcolor }
+        }
+    } ) ;
+    
+var count_activated_cells = new Abubu.Solver({
+        fragmentShader : source( 'activate_mask' ) ,
+  		  uniforms : {
+                inTexture : { type : 't', value : fcolor } ,
+                threshold: { type : 'f', value : 0.3 } ,
+            } ,
+        targets : {
+                ocolor : { location : 0, target : activate_mask }
+        }
+    } ) ;
+env.sampler = new Abubu.Solver({
+    fragmentShader : source( 'sampler' ) ,
+    uniforms:{
+        icolor0 : { type : 't', value : fcolor } ,
+    } ,
+    targets:{
+        ocolor : { location : 0 , target : sampler_texture } ,
+    }
+} ) ;   
+    
+env.reduceS1 = new Abubu.Solver({
+    fragmentShader : source( 'reduceS1' ),
+    uniforms : { 
+        inTexture : { type : 't', value : activate_mask } ,
+    } ,
+    targets : { 
+        ocolor : { location : 0, target : reductionResultS1 } ,
+    }
+} ) ;
+
+// second step of reduction ----------------------------------------------
+env.reduceS2 = new Abubu.Solver({
+    fragmentShader : source( 'reduceS2' ),
+    uniforms : { 
+        inTexture : { type : 't', value : reductionResultS1 } ,
+    } ,
+    targets : { 
+        ocolor : { location : 0, target : reductionResultS2 } ,
+    }
+} ) ;
+
+var efmap = new Abubu.Solver( {
+ 	    fragmentShader  : source('efield'),
+				uniforms : {
+								Einit   : { type : 't', value : Emapin  } ,
+                                currtime   : { type : 'f', value : env.time  } ,
+								stim_period   : { type : 'f', value : env.stim_period  } ,
+								omega   : { type : 'f', value : env.omega  } ,
+								Etimeact   : { type : 'f', value : env.Etimeact  } ,
+								Theta0   : { type : 'f', value : env.Theta0  } ,
+                                Lx   : { type : 'f', value : env.Lx  } ,
+                                Emax   : { type : 'f', value : env.Emax  } ,
+				} ,
+				targets : {
+								Ecolor : { location : 0, target : Emap }
+				}
+		} ) ;
+
+// march the solution for two time steps
+function march(){
+    efmap.uniforms['currtime'].value = env.time;
+    efmap.render() ;
+    fmarch.uniforms['currtime'].value = env.time ;
+    fmarch.uniforms['inEmap'].value = Emap ;
+    fmarch.render() ;
+    env.time += env.dt ;
+    smarch.uniforms['currtime'].value = env.time ;
+    smarch.uniforms['inEmap'].value = Emap ;
+    smarch.render() ;
+    env.time += env.dt ;
+
+    // cal FTE
+    count_activated_cells.render() ;
+    env.reduceS1.render() ;
+    env.reduceS2.render() ;  
+    env.FTE = reductionResultS2.value[0] ;
+    //env.time += env.dt*2. ;
+}
+
+
+j=0;
+// before run it, run "python -m http.server 8000" in local folder
+loadICFromURL('IC/fcolor_250.csv')
+loadMaskFromURL('maskcirclenew1.csv')
+loadEMapFromURL('Emask1024circ_2cm.csv')
+
+// create a IC_name_list from fcolor_250.csv , fcolor_275.csv,...,fcolor_1000.csv 
+IC_name_list = []
+for (i=250; i<=1000; i=i+25){
+    IC_name_list.push('IC/fcolor_'+i+'.csv')
+}
+
+function run(){
+        if (env.running){
+            for(var i = 0 ; i<env.skip ; i++){
+                march() ;              
+
+
+                env.usgn.update(env.time) ;
+                //env.ssgn.update(env.time) ;
+                j=j+1;
+            }
+        }
+        splot.render() ;
+        plot.render() ;
+        if((Math.floor(j/env.skip) % 5)==0){
+		 plotEx.render() ;
+		 plotEy.render() ;
+        }
+        
+        requestAnimationFrame(run) ;
+}
+
+// click solver ..........................................................
+var click = new Abubu.Solver({
+    fragmentShader : source( 'click' ) ,
+    uniforms : {
+        inTexture : { type : 't', value : fcolor } ,
+        clickRadius: { type : 'f', value : env.clickRadius } ,
+        clickPosition: { type : 'v2', value : env.clickPosition } ,
+    } ,
+    targets : {
+            ocolor : { location : 0 , target : scolor } ,
+    }
+} ) ;
+
+
+var clickCopy = new Abubu.Copy( scolor, fcolor ) ;
+
+var mouseDrag = new Abubu.MouseListener({
+    canvas : canvas_1 ,
+    event : 'drag' ,
+    callback : function(e){
+        click.uniforms.clickPosition.value = e.position ;
+        click.render() ;
+        clickCopy.render() ;
+    }
+} ) ;
+
+// set probe position ....................................................
+var setProbe = new Abubu.MouseListener({
+    canvas : canvas_1 ,
+    event  : 'click' ,
+    shift  : true ,
+    callback : function(e){
+        plot.setProbePosition(e.position) ;
+        splot.setProbePosition(e.position) ;
+        splot.init() ;
+        plot.init() ;
+    }
+} ) ;
+
+
+env.initialize = function(){
+    env.time = 0 ;
+    efmap.uniforms['currtime'].value = env.time;
+    efmap.uniforms['Einit'].value = Emapin;
+    efmap.render() ;
+    plotEx.render();
+    plotEy.render();
+    fmarch.uniforms['inEmap'].value = Emap ;
+    smarch.uniforms['inEmap'].value = Emap ;
+    init.render() ;
+    splot.init() ;
+    env.usgn.init(0) ;
+    //env.ssgn.init(0) ;
+    plot.init() ;
+    laplr.render() ;
+    lapud.render() ;
+}
+
+
+
+
+// add multiple parameters to gui ........................................
+function addToGui(
+        guiElemenent ,  // gui element to add options into
+        obj,            // object that holds parameters
+        paramList,      // array of strings that contains list
+                        // of parmeters to be added
+        solverList      // array of solvers that need to be update upon
+                        // change of a parameter through gui interactions
+    ){
+    var elements = {} ;
+    for(i in paramList){
+        var param = paramList[i] ;
+        elements[param] = guiElemenent.add(obj, param )  ;
+        elements[param].onChange(function(){
+            console.log(this) ;
+            Abubu.setUniformInSolvers(
+                    this.property , // this refers to the GUI element
+                    this.object[this.property] ,
+                    solverList ) ;
+        } ) ;
+    }
+    return elements ;
+}
+
+
+function processFile(){
+    var file = document.querySelector("#myFile").files[0] ;
+    var reader = new FileReader() ;
+    reader.readAsText(file) ;
+
+    // only the when the file is loaded it can be analyzed
+    reader.onload = function(event){
+        var result  = event.target.result ;
+        var data = result.split(',') ;
+
+        var width = parseInt(data[0]) ;
+        var height = parseInt(data[1]) ;
+
+        var table = new Float32Array(width*height*4) ;
+        var p = 0 ;
+        for (var i=2 ; i< data.length; i++){ // modify accordingly
+            table[p++] = parseFloat( data[i]) ;
+        }
+
+        hcolor.data = table ;
+
+        var plotM = new Abubu.Plot2D({
+              target : hcolor,
+              channel : 'r',
+              minValue : 0. ,
+              maxValue : 1. ,
+              colorbar : true ,
+              canvas : canvas_5 ,
+          }) ;
+        plotM.init();
+        plotM.render();
+
+
+				plotM.addMessage(
+				'Mask map', 0.01,0.05,{
+				font : 'Bold 10pt Arial' ,
+				align: 'left',
+				style: "#ff0000" ,
+				} ) ;
+
+
+         laplr.uniforms['pMap'].value = hcolor ;
+         laplr.render() ;
+         lapud.uniforms['pMap'].value = hcolor ;
+         lapud.render() ;
+		 fmarch.uniforms['inTissue'].value = hcolor ;
+ 		 smarch.uniforms['inTissue'].value = hcolor ;
+
+    }
+}
+
+
+
+// saveCsvFile : save an array to disk as comma separated values .........
+env.csvFileName = 'fcolor.csv' ;
+env.saveCsvFile = function(){
+    var link = document.createElement('a') ;
+    var data = "data:text;charset=utf-8," +
+    fcolor.width + ',' +
+    fcolor.height + ',' +
+    fcolor.value.join() ;
+
+    var csv = encodeURI( data ) ;
+    link.setAttribute( 'href', csv ) ;
+    link.setAttribute( 'download', env.csvFileName ) ;
+    link.click() ;
+}
+
+
+
+function processFile2(){
+    var file = document.querySelector("#myFileIC").files[0] ;
+    var reader = new FileReader() ;
+    reader.readAsText(file) ;
+
+    // only the when the file is loaded it can be analyzed
+    reader.onload = function(event){
+        var result  = event.target.result ;
+        var data = result.split(',') ;
+
+        var width = parseInt(data[0]) ;
+        var height = parseInt(data[1]) ;
+
+        var table = new Float32Array(width*height*4) ;
+        var p = 0 ;
+        for (var i=2 ; i< data.length; i++){ // modify accordingly
+            table[p++] = parseFloat( data[i]) ;
+        }
+
+        fcolor.data = table ;
+        scolor.data = table ;
+    }
+}
+
+function loadMaskFromURL(path){
+  console.log("Loading Mask file:", path);
+
+  fetch(path)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(/[,\s]+/);
+      const width = parseInt(data[0]);
+      const height = parseInt(data[1]);
+
+      const table = new Float32Array(width * height * 4);
+      let p = 0;
+      for (let i = 2; i < data.length; i++) {
+        table[p++] = parseFloat(data[i]);
+      }
+
+      // assign to GPU texture
+      hcolor.data = table;
+
+      // create plot
+      const plotM = new Abubu.Plot2D({
+        target: hcolor,
+        channel: 'r',
+        minValue: 0.,
+        maxValue: 1.,
+        colorbar: true,
+        canvas: canvas_5,
+      });
+
+      plotM.init();
+      plotM.render();
+
+      plotM.addMessage(
+        'Mask map', 0.01, 0.05, {
+          font: 'Bold 10pt Arial',
+          align: 'left',
+          style: "#ff0000",
+        }
+      );
+
+      // update uniforms for other shaders
+      laplr.uniforms['pMap'].value = hcolor;
+      laplr.render();
+      lapud.uniforms['pMap'].value = hcolor;
+      lapud.render();
+      fmarch.uniforms['inTissue'].value = hcolor;
+      smarch.uniforms['inTissue'].value = hcolor;
+
+      console.log("Mask loaded successfully!");
+    })
+    .catch(err => console.error("Error loading Mask file:", err));
+}
+
+
+function loadICFromURL(path){
+  console.log("Loading IC file:", path);
+
+  fetch(path)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(',');
+
+      const width = parseInt(data[0]);
+      const height = parseInt(data[1]);
+
+      const table = new Float32Array(width * height * 4);
+      let p = 0;
+      for (let i = 2; i < data.length; i++){
+        table[p++] = parseFloat(data[i]);
+      }
+
+      fcolor.data = table;
+      scolor.data = table;
+      console.log("IC loaded successfully!");
+    })
+    .catch(err => console.error("Error loading IC:", err));
+}
+
+
+function loadEMapFromURL(path){
+  console.log("Loading E-field file:", path);
+
+  fetch(path)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(/[,\s]+/);
+      const width  = parseInt(data[0]);
+      const height = parseInt(data[1]);
+      const table = new Float32Array(width * height * 4);
+      let p = 0;
+      for (let i = 2; i < data.length; i++){
+        table[p++] = parseFloat(data[i]);
+      }
+
+      // assign to texture
+      Emapin.data = table;
+
+      // render updates
+      plotEx.render();
+      plotEy.render();
+
+      efmap.uniforms['Einit'].value = Emapin;
+      efmap.render();
+
+      console.log("E-field map loaded successfully!");
+    })
+    .catch(err => console.error("Error loading E-field file:", err));
+}
+
+
+function processFileE(){
+    var file = document.querySelector("#myFileE").files[0] ;
+    var reader = new FileReader() ;
+    reader.readAsText(file) ;
+    
+    // only the when the file is loaded it can be analyzed
+    reader.onload = function(event){
+        var result  = event.target.result ;
+        var data = result.split(',') ;
+        
+        var width = parseInt(data[0]) ;
+        var height = parseInt(data[1]) ;
+        
+        var table = new Float32Array(width*height*4) ;
+        var p = 0 ;
+        for (var i=2 ; i< data.length; i++){ // modify accordingly
+            table[p++] = parseFloat( data[i]) ;
+        }
+        
+        Emapin.data = table ;
+        plotEx.render();
+        plotEy.render();
+        efmap.uniforms['Einit'].value = Emapin ;
+        efmap.render() ;
+    }
+}
+
+
+
+// .......................................................................
+// create the graphical user interface
+// .......................................................................
+function createGui(){
+    var gui = new Abubu.Gui() ;     /*  create a graphical user
+                                        interface               */
+    var panel = gui.addPanel({width:300}) ; // add a panel to the GUI
+
+
+    // E field --------------------------------------------------------
+    var pcm = panel.addFolder('E field') ;
+    pcm.elements = addToGui( pcm, env,
+            [   'stim_period',
+				'omega',
+                'Etimeact' ,
+                'Theta0',
+                 'Emax',
+							   ],
+            [efmap] ) ;
+            
+    var pcm = panel.addFolder('Model param') ;
+    pcm.elements = addToGui( pcm, env,
+                                [   'Temp',
+                                     ],
+                                [fmarch, smarch] ) ;
+            
+
+    var csv = panel.addFolder('Save CSV') ;
+    csv.add(env,'csvFileName' ) ;
+    csv.add(env,'saveCsvFile' ) ;
+
+
+    //pcm.elements.omega.step(1);
+
+    // execution ---------------------------------------------------------
+    var exe = panel.addFolder('Execution') ;
+    exe.add(env,'time').listen() ;
+    exe.add(env,'FTE').step(0.001).listen();
+    exe.add(env,'initialize') ;
+    exe.add(env,'running').listen() ;
+    exe.open() ;
+}
+
+
+
+
+/* run createGui to create the graphical user interface     */
+createGui() ;
+run() ;
+
+</script>
+</body>
+</html>
