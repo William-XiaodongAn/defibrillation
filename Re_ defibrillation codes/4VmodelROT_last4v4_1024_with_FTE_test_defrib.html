@@ -1043,10 +1043,14 @@ loadEMapFromURL('Emask1024circ_2cm.csv')
 
 function run(){
         if (env.running){
-            if (env.FTE < 0.05 && env.time > 20) {
-                console.log(IC_name_list[IC_idx] + ' used ' + Math.floor(env.time / 500) + ' defribs');
+            if (env.FTE < 0.05 && env.time > 2) {
+                console.log(IC_name_list[IC_idx] + ' used ' + Math.floor(env.time / 500 + 1) + ' defribs');
                 env.initialize();
                 IC_idx += 1;
+                if (IC_idx >= IC_name_list.length){
+                    console.log('Simulation completed');
+                    env.running = false;
+                }
                 loading = true;
                 loadICFromURL(IC_name_list[IC_idx]);
             }            
@@ -1311,7 +1315,7 @@ function loadMaskFromURL(path){
 
 
 function loadICFromURL(path){
-  console.log("Loading IC file:", path);
+  //console.log("Loading IC file:", path);
 
   fetch(path)
     .then(res => {
@@ -1332,7 +1336,7 @@ function loadICFromURL(path){
 
       fcolor.data = table;
       scolor.data = table;
-      console.log("IC loaded successfully!");
+      //console.log("IC loaded successfully!");
       loading = false;
 
     })
