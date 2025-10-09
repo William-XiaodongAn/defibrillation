@@ -737,6 +737,8 @@ var env = {
 		Emax : 10.,
         Temp : 37.0,
 		skip : 40,
+        tiptThreshold : 0.5,
+        tiptVisiblity : false,
   } ;
 
 
@@ -816,6 +818,7 @@ lapud.render() ;
 // post processing .......................................................
 var plot = new Abubu.Plot2D({
     target : fcolor,   /* the texture to visualize             */
+    prevTarget: scolor,
     channel : 'r',              /* the channel of interest:
                                         can be : 'r', 'g', 'b', or 'a'
                                         defualt value is 'r'            */
@@ -824,8 +827,12 @@ var plot = new Abubu.Plot2D({
     colorbar : true ,           /* if you need to show the colorbar     */
     probeVisible : true ,
     canvas : canvas_1 ,         /* the canvas to draw on                */
+    tiptThickness : 5,
+    tiptThreshold : 0.8,
 }) ;
 plot.init() ;   /* initialize the plot */
+plot.setTiptThreshold(env.tiptThreshold);
+
 plot.render() ;
 
 var plotEx = new Abubu.Plot2D({
@@ -1448,6 +1455,13 @@ function createGui(){
     exe.add(env,'FTE').step(0.001).listen();
     exe.add(env,'initialize') ;
     exe.add(env,'running').listen() ;
+    exe.add( env, 'tiptVisiblity' ).name('Plot Tip Trajectory?').onChange(function(){
+            plot.setTiptVisiblity(env.tiptVisiblity) ;
+            plot.render() ;
+        } ) ;
+    exe.add(env,'tiptThreshold',-10,10.0).step(0.01).name('Tip Threshold [mv]').onChange(function(){
+            plot.setTiptThreshold(env.tiptThreshold) ;
+        } ) ;
     exe.open() ;
 }
 
