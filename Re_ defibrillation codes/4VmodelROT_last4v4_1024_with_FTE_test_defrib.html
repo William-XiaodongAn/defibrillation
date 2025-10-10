@@ -555,10 +555,9 @@ void main() {
 		float aey = Ma_UD.a ;
 
 		float inTiss=texture(inTissue , cc ).r ;
+    
 
-	 if(inTiss==1.0){
-
-
+    if (inTiss==1.0){}
     float Ex= texture(inEmap, cc).r;
     float Ey= texture(inEmap, cc).g;
 
@@ -671,10 +670,11 @@ void main() {
     if(u>2.8) u=2.8;
 
     if(u<-1.0) u=-1.0;
+    }else{
+        color=vec4(0.) ;
 
-	}else{
-		color=vec4(0.);
-	}
+    }
+
 
 
 
@@ -1131,8 +1131,8 @@ env.initialize = function(){
     efmap.render() ;
     plotEx.render();
     plotEy.render();
-    fmarch.uniforms['inEmap'].value = Emap ;
-    smarch.uniforms['inEmap'].value = Emap ;
+    fmarch.uniforms['inEmap'].value = Emap; // bookmark 1
+    smarch.uniforms['inEmap'].value = Emap;
     init.render() ;
     splot.init() ;
     env.usgn.init(0) ;
@@ -1307,7 +1307,7 @@ function loadMaskFromURL(path){
         }
       );
 
-      // update uniforms for other shaders
+      // update uniforms for other shaders bookmark 2
       laplr.uniforms['pMap'].value = hcolor;
       laplr.render();
       lapud.uniforms['pMap'].value = hcolor;
