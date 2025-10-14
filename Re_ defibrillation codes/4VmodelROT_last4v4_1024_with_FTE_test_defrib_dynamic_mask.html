@@ -1069,7 +1069,7 @@ var tipt_loc = [];
 
 function run(){
         if (env.running){
-            if (env.FTE < 0.05 && env.time > 2) {
+            if (env.FTE < -0.2 && env.time > 2) {
                 console.log(IC_name_list[IC_idx] + ' used ' + Math.floor(env.time / 500 + 1) + ' defribs');
                 env.initialize();
                 IC_idx += 1;
@@ -1084,7 +1084,7 @@ function run(){
                 if (!loading){
 
                     if (env.time % env.stim_period < 2*env.dt){
-                        implementMask(true);
+                        implementMask(false);
                         console.log('Hole Mask implemented at time ' + env.time);
                     }
                     if (env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){

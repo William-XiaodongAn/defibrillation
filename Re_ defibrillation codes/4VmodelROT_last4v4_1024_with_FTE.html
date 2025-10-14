@@ -1059,7 +1059,6 @@ function run(){
                 }*/
 
                 if (env.capture_sample && (j % sample_interval) == 0) { // the recording dt is 0.15*2*10 = 3 ms
-                    console.log(env.time);
                     env.sampler.render() ;
 					csv_download += ',' + sampler_texture.value ;
                     csv_download += ';'

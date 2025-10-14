@@ -739,6 +739,8 @@ var env = {
 		skip : 40,
         tiptThreshold : 0.5,
         tiptVisiblity : false,
+        hole_mask_loaded : false,
+
   } ;
 
 
@@ -1035,27 +1037,24 @@ function march(){
     FTE_texture.data = new Float32Array([env.FTE,0,0,0]) ;
     //env.time += env.dt*2. ;
 }
+// save float32array to csv file
+function saveCsvFile(textureValue, name) {
+  // textureValue is a Float32Array (e.g., texture.value)
+  const csv = Array.from(textureValue).join(',');
 
-function get_tipt_loc(){
-    // iterate over tipt loc texture and return the tipt loc to a list
-    //plot.stipt.value is the tipt loc texture, where tip is [1,1,1,1]
-    // len = 1024*1024*4, transform the index to 2D loc, and only return first r channel loc in rgba
-    // so once we find a tip, we skip next 3 iterations
-    var tipt_loc = '';
-    var row = [];
-    for (let y = 0; y < 512; ++y) {
-        for (let x = 0; x < 512; ++x) {
-            const idx = 4 * (y * 512 + x);
-            if (plot.stipt.value[idx] == 1) {
-                row.push(x, y);
-            }
-        }
-    }
-    if (row.length > 0) {
-        tipt_loc = row.join(',') + ';' + env.time + '\n';
-    }
-    return tipt_loc;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${name}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(link.href);
 }
+
 
 j=0;
 // create a IC_name_list from fcolor_250.csv , fcolor_275.csv,...,fcolor_1000.csv 
@@ -1070,8 +1069,6 @@ loadICFromURL(IC_name_list[IC_idx])
 loadMaskFromURL('maskcirclenew1.csv','maskcircle.csv')
 implementMask(false)
 loadEMapFromURL('Emask1024circ_2cm.csv')
-
-var tipt_loc = '';
 
 function run(){
         if (env.running){
@@ -1091,19 +1088,23 @@ function run(){
                     // plot tipt for every 1ms, dt = 0.015 -> 1/0.015 = 66.67
                     // so plot tipt for 67 steps and replot for another 67 steps and so on
                     // for example, plot on at 0 step, plot off at 66 step, plot on at 67 step, and so on
-                    if (j % 1000 == 0){
-                        env.tiptThreshold = true;
-                        plot.setTiptThreshold(env.tiptThreshold);
+                    if (j % 67 == 0 && env.hole_mask_loaded === false){
+                        env.tiptVisiblity = true;
+                        plot.setTiptVisiblity(env.tiptVisiblity);
                         plot.render();
                     }
-                    else if (j % 1000 == 999){
-                        env.tiptThreshold = false;
-                        plot.setTiptThreshold(env.tiptThreshold);
-                        tipt_loc += get_tipt_loc();
+                    else if (j % 67 == 66){
+                        var down_name = 'tipt_loc_' + Math.floor(env.time) + 'ms';
+                        if (!env.hole_mask_loaded){
+                            saveCsvFile(plot.stipt.value,down_name);
+                        }
+                        env.tiptVisiblity = false;
+                        plot.setTiptVisiblity(env.tiptVisiblity);
                     }
 
                     if (env.time % env.stim_period < 2*env.dt){
                         implementMask(true);
+
                         console.log('Hole Mask implemented at time ' + env.time);
                     }
                     if (env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){
@@ -1368,6 +1369,7 @@ function implementMask(holes = true){
         lapud.render();
         fmarch.uniforms['inTissue'].value = hcolor;
         smarch.uniforms['inTissue'].value = hcolor;
+        env.hole_mask_loaded = true;
     } 
     else {
         console.log("Implementing mask without holes");
@@ -1378,6 +1380,7 @@ function implementMask(holes = true){
         lapud.render();
         fmarch.uniforms['inTissue'].value = hcolor; 
         smarch.uniforms['inTissue'].value = hcolor;
+        env.hole_mask_loaded = false;
     }
  
 }
