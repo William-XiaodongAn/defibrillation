@@ -1072,7 +1072,7 @@ loadEMapFromURL('Emask1024circ_2cm.csv')
 
 function run(){
         if (env.running){
-            if (env.FTE < 0.05 && env.time > 2) {
+            if (env.FTE < -0.05 && env.time > 2) {
                 console.log(IC_name_list[IC_idx] + ' used ' + Math.floor(env.time / 500 + 1) + ' defribs');
                 env.initialize();
                 IC_idx += 1;

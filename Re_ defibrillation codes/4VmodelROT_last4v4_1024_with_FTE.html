@@ -1051,13 +1051,13 @@ function run(){
                 */
 
                 // now i want to run env.saveCsvFile every 25 ms from 250ms to 1000ms
-                /*
+                
                 if (env.time >= 250 && env.time <= 1000 && (env.time% 25 <= env.dt*2) ) {
                     // avoid multiple downloads within small range
                     env.csvFileName = 'fcolor_' + Math.floor(env.time) + '.csv' ; //the name should reflect the time
                     env.saveCsvFile() ;
-                }*/
-
+                }
+                
                 if (env.capture_sample && (j % sample_interval) == 0) { // the recording dt is 0.15*2*10 = 3 ms
                     env.sampler.render() ;
 					csv_download += ',' + sampler_texture.value ;
