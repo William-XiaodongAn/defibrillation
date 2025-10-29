@@ -1091,6 +1091,23 @@ function record_FTE(){
         env.csv_download.push(env.FTE);
     }
 }
+
+savePlot2DPrefix = '' ;
+savePlot2D    = function(){
+    //this.running = false ;
+    var prefix ;
+    try{
+        prefix = eval(savePlot2DPrefix) ;
+    }catch(e){
+        prefix = savePlot2DPrefix ;
+    }
+    Abubu.saveCanvas( 'canvas_1',
+    {
+        prefix  : prefix,
+        format  : 'png'
+    } ) ;
+}
+
 env.csv_download = [];
 env.FTE_downloaded = false;
 function run(){
@@ -1100,13 +1117,10 @@ function run(){
 
                 march();
                 // randomnize click position
-                click.uniforms.clickPosition.value = [Math.random(), Math.random()] ;
-                click.render() ;
-                clickCopy.render() ;
-                if (env.FTE > 0.05 && env.time < 10){
+                if (env.FTE > 0.05 && env.time < 101){
                     record_FTE();
-                    record_fcolor(5);
-                    record_tip(5);
+                    record_fcolor(5,IC_idx);
+                    record_tip(5,IC_idx);
                     env.running = false;
                     setTimeout(function(){
                         env.running = true;
@@ -1114,15 +1128,21 @@ function run(){
                 }
                 else{
                     if (!env.FTE_downloaded){
-                        saveCsvFile(env.csv_download,'FTE');
+                        saveCsvFile(env.csv_download,'FTE_' + IC_idx);
                     }
                     env.FTE_downloaded = true;
                     env.csv_download = [];
                     env.running = false;
-                    //IC_idx += 1;
-                    loadICFromURL('fcolor_' + IC_idx + '.csv')
-                    env.running = true;
+                    savePlot2DPrefix = "fcolor_" + IC_idx;
+                    savePlot2D();
+                    IC_idx += 1;
+                    loadICFromURL('fcolor_' + (IC_idx-1) + '_100ms.csv')
+                    // sleep for a while
+                    setTimeout(function(){
+                        env.running = true;
+                    }, 1000000);		// 1 seconds
                     env.time = 0.;
+                    break;
                 }
 
                 env.usgn.update(env.time) ;
@@ -1412,7 +1432,9 @@ function loadICFromURL(path){
       scolor.data = table;
       //console.log("IC loaded successfully!");
       loading = false;
-
+        click.uniforms.clickPosition.value = [Math.random(), Math.random()] ;
+        click.render() ;
+        clickCopy.render() ;
     })
     .catch(err => console.error("Error loading IC:", err));
 
