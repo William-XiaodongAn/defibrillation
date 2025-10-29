@@ -728,7 +728,7 @@ var env = {
         running : false ,
 		width : 1024,
 		height : 1024,
-		clickRadius : 0.0 ,
+		clickRadius : .06 ,
 		clickPosition  : [0.,0.] ,
 		Etimeact : 0.,
 		Theta0 : 0.,
@@ -1057,14 +1057,14 @@ var IC_idx = 0
 loadICFromURL('fcolor_' + IC_idx + '.csv')
 loadMaskFromURL('maskcircle.csv')
 
-function record_tip(freq){
+function record_tip(freq,IC_idx){
     if (env.time% freq <= env.dt*2 ) {
         env.pendingTiptSave = Math.floor(env.time);
         console.log('tip at ' + env.pendingTiptSave);
         // perform save while simulation is paused
         if (env.pendingTiptSave != undefined) {
             const arrCopy = plot.stipt.value.slice(); // one readback while paused
-            const name = 'tip_' + Math.floor(env.time) + 'ms';
+            const name = 'tip_' + IC_idx + '_' + Math.floor(env.time) + 'ms';
             setTimeout(() => saveCsvFile(arrCopy, name), 0);
             env.pendingTiptSave = undefined;
         }
@@ -1077,10 +1077,10 @@ function record_tip(freq){
         plot.setTiptVisiblity(env.tiptVisiblity);
     }
 }
-function record_fcolor(freq){
+function record_fcolor(freq,IC_idx){
     if (env.time > 0 && env.time <= 3000 && (env.time% freq <= env.dt*2) ) {
         // avoid multiple downloads within small range
-        env.csvFileName = 'fcolor_' + Math.floor(env.time) + 'ms' ; //the name should reflect the time
+        env.csvFileName = 'fcolor_' + IC_idx + '_' + Math.floor(env.time) + 'ms' ; //the name should reflect the time
         console.log('fcolor at ' + Math.floor(env.time));
         env.saveCsvFile() ;
     }
@@ -1099,8 +1099,11 @@ function run(){
                 if (!loading){
 
                 march();
-
-                if (env.FTE > 0.05 && env.time < 10000){
+                // randomnize click position
+                click.uniforms.clickPosition.value = [Math.random(), Math.random()] ;
+                click.render() ;
+                clickCopy.render() ;
+                if (env.FTE > 0.05 && env.time < 10){
                     record_FTE();
                     record_fcolor(5);
                     record_tip(5);
