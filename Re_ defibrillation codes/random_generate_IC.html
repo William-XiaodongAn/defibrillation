@@ -555,10 +555,9 @@ void main() {
 		float aey = Ma_UD.a ;
 
 		float inTiss=texture(inTissue , cc ).r ;
+    
 
-	 if(inTiss==1.0){
-
-
+    if (inTiss==1.0){
     float Ex= texture(inEmap, cc).r;
     float Ey= texture(inEmap, cc).g;
 
@@ -671,10 +670,11 @@ void main() {
     if(u>2.8) u=2.8;
 
     if(u<-1.0) u=-1.0;
+    }else{
+        color=vec4(0.) ;
 
-	}else{
-		color=vec4(0.);
-	}
+    }
+
 
 
 
@@ -728,15 +728,17 @@ var env = {
         running : false ,
 		width : 1024,
 		height : 1024,
-		clickRadius : 0.06 ,
+		clickRadius : .06 ,
 		clickPosition  : [0.,0.] ,
 		Etimeact : 0.,
 		Theta0 : 0.,
 		omega : 0., // rad/s
-		stim_period : 500.,
+		stim_period : 500., //118.
 		Emax : 10.,
         Temp : 37.0,
 		skip : 40,
+        tiptThreshold : 0.5,
+        tiptVisiblity : false,
   } ;
 
 
@@ -756,7 +758,8 @@ sampler_texture.pairable = true ;
 var activate_mask = new Abubu.Float32Texture(env.width,env.height) ;
 var reductionResultS1 = new Abubu.Float32Texture(env.width,1) ;
 var reductionResultS2 = new Abubu.Float32Texture(1,1) ;	
-env.FTE = 0. ;
+var FTE_texture = new Abubu.Float32Texture(1,1) ;
+env.FTE = 1. ;
 reductionResultS1.pairable = true ;
 reductionResultS2.pairable = true ;
 activate_mask.pairable = true;
@@ -815,6 +818,7 @@ lapud.render() ;
 // post processing .......................................................
 var plot = new Abubu.Plot2D({
     target : fcolor,   /* the texture to visualize             */
+    prevTarget: scolor,
     channel : 'r',              /* the channel of interest:
                                         can be : 'r', 'g', 'b', or 'a'
                                         defualt value is 'r'            */
@@ -823,8 +827,12 @@ var plot = new Abubu.Plot2D({
     colorbar : true ,           /* if you need to show the colorbar     */
     probeVisible : true ,
     canvas : canvas_1 ,         /* the canvas to draw on                */
+    tiptThickness : 5,
+    tiptThreshold : 0.8,
 }) ;
 plot.init() ;   /* initialize the plot */
+plot.setTiptThreshold(env.tiptThreshold);
+
 plot.render() ;
 
 var plotEx = new Abubu.Plot2D({
@@ -882,22 +890,20 @@ canvas : canvas_2,
 
 
 splot.addMessage(
-'Signal at the probe', 0.5,0.05,{
+'Fraction of Tissue Excited (FTE)', 0.5,0.05,{
 font : 'Bold 12pt Arial' ,
 align: 'center',
 style: "#ff0000" ,
 } ) ;
 
-env.usgn = splot.addSignal( fcolor, {
+env.usgn = splot.addSignal( FTE_texture, {
 channel : 'r',
-minValue : -1.5,
-maxValue : 3.5 ,
+minValue : -0.2,
+maxValue : 1 ,
 restValue : 0 ,
 color : [ 1.,0.,0.0 ],
 visible : true ,
-timewindow : 1000 ,
-probePosition : [0.5,0.5]
-} ) ;
+timewindow : 1000 ,} ) ;
 
 /*env.ssgn = splot.addSignal( fcolor, {
                            channel : 'a',
@@ -1009,7 +1015,7 @@ var efmap = new Abubu.Solver( {
 // march the solution for two time steps
 function march(){
     efmap.uniforms['currtime'].value = env.time;
-  	//efmap.render() ;
+    efmap.render() ;
     fmarch.uniforms['currtime'].value = env.time ;
     fmarch.uniforms['inEmap'].value = Emap ;
     fmarch.render() ;
@@ -1024,57 +1030,119 @@ function march(){
     env.reduceS1.render() ;
     env.reduceS2.render() ;  
     env.FTE = reductionResultS2.value[0] ;
+    FTE_texture.data = new Float32Array([env.FTE,0,0,0]) ;
     //env.time += env.dt*2. ;
 }
+function saveCsvFile(textureValue, name) {
+  // textureValue is a Float32Array (e.g., texture.value)
+  const csv = Array.from(textureValue).join(',');
 
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${name}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(link.href);
+}
 
 j=0;
-idx = 0;
-env.capture_sample = false;
-var sample_interval = 10 // 10 dt*2 = 0.15*2 ms
-var capture_end_time = 1000 // ms
-var csv_download = "";
+var loading = false;
+// before run it, run "python -m http.server 8000" in local folder
+var IC_idx = 0;
+loadICFromURL('fcolor_' + IC_idx + '.csv')
+loadMaskFromURL('maskcircle.csv')
 
+function record_tip(freq,IC_idx){
+    if (env.time% freq <= env.dt*2 ) {
+        env.pendingTiptSave = Math.floor(env.time);
+        console.log('tip at ' + env.pendingTiptSave);
+        // perform save while simulation is paused
+        if (env.pendingTiptSave != undefined) {
+            const arrCopy = plot.stipt.value.slice(); // one readback while paused
+            const name = 'tip_' + IC_idx + '_' + Math.floor(env.time) + 'ms';
+            setTimeout(() => saveCsvFile(arrCopy, name), 0);
+            env.pendingTiptSave = undefined;
+        }
+        env.tiptVisiblity = false;
+        plot.setTiptVisiblity(env.tiptVisiblity);
+    }
+
+    else if (env.time% (freq - 1) <= env.dt*2 && env.tiptVisiblity == false) {
+        env.tiptVisiblity = true;
+        plot.setTiptVisiblity(env.tiptVisiblity);
+    }
+}
+function record_fcolor(freq,IC_idx){
+    if (env.time > 0 && env.time <= 3000 && (env.time% freq <= env.dt*2) ) {
+        // avoid multiple downloads within small range
+        env.csvFileName = 'fcolor_' + IC_idx + '_' + Math.floor(env.time) + 'ms' ; //the name should reflect the time
+        console.log('fcolor at ' + Math.floor(env.time));
+        env.saveCsvFile() ;
+    }
+}
+
+function record_FTE(){
+    if (env.time<3000){
+        env.csv_download.push(env.FTE);
+    }
+}
+
+savePlot2DPrefix = '' ;
+savePlot2D    = function(){
+    //this.running = false ;
+    var prefix ;
+    try{
+        prefix = eval(savePlot2DPrefix) ;
+    }catch(e){
+        prefix = savePlot2DPrefix ;
+    }
+    Abubu.saveCanvas( 'canvas_1',
+    {
+        prefix  : prefix,
+        format  : 'png'
+    } ) ;
+}
+
+env.csv_download = [];
+env.FTE_downloaded = false;
 function run(){
         if (env.running){
             for(var i = 0 ; i<env.skip ; i++){
-                march() ;
+                if (!loading){
 
-                if (env.time<3000){
-                    csv_download += ',' + env.FTE
-                }
-                if (env.running && env.time>3000){
-                    saveCsvFile(csv_download);
-                    env.running = false
-                }
-                
+                march();
+                if (env.time < 3000){
 
-                // now i want to run env.saveCsvFile every 25 ms from 250ms to 1000ms
-                /*
-                if (env.time >= 250 && env.time <= 1000 && (env.time% 25 <= env.dt*2) ) {
-                    // avoid multiple downloads within small range
-                    env.csvFileName = 'fcolor_' + Math.floor(env.time) + '.csv' ; //the name should reflect the time
-                    env.saveCsvFile() ;
+
                 }
-                
-                if (env.capture_sample && (j % sample_interval) == 0) { // the recording dt is 0.15*2*10 = 3 ms
-                    env.sampler.render() ;
-					csv_download += ',' + sampler_texture.value ;
-                    csv_download += ';'
-                }
-                if (env.capture_sample && env.time > capture_end_time){
-                    env.capture_sample = false;
-                    saveCsvFile(csv_download);
-                    csv_download = "";
-                    // programmatically trigger the capture_sample control to reset
-                    if (env.capture_sample_control && env.capture_sample_control.updateDisplay) {
-                        env.capture_sample_control.updateDisplay();
+                else{
+                    // sleep for a while to allow the user to download the data
+                    savePlot2DPrefix = 'fcolor_' + IC_idx;
+                    savePlot2D() ;
+                    env.csvFileName = 'fcolor_' + IC_idx + '.csv' ;
+                    if (env.FTE > 0.05){
+                        env.saveCsvFile();
                     }
-                }*/
+                    IC_idx += 1;
+                    env.running = false;
+                    loadICFromURL('fcolor_0.csv')
+                    if (IC_idx < 1000){
+                        setTimeout(function(){
+                            env.running = true;
+                        }, 1000);
+                        }
+                    env.time = 0.;
+                }
 
                 env.usgn.update(env.time) ;
                 //env.ssgn.update(env.time) ;
                 j=j+1;
+                }
             }
         }
         splot.render() ;
@@ -1085,22 +1153,6 @@ function run(){
         }
         
         requestAnimationFrame(run) ;
-}
-function saveCsvFile(data) {
-	var blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
-	var url = URL.createObjectURL(blob);
-
-	var link = document.createElement('a');
-	link.setAttribute('href', url);
-
-	var name_download = 'sample_8*8.csv';
-	link.setAttribute('download', name_download);
-
-	document.body.appendChild(link);
-	link.click();
-
-	document.body.removeChild(link);
-	URL.revokeObjectURL(url);
 }
 
 // click solver ..........................................................
@@ -1150,8 +1202,8 @@ env.initialize = function(){
     efmap.render() ;
     plotEx.render();
     plotEy.render();
-    fmarch.uniforms['inEmap'].value = Emap ;
-    smarch.uniforms['inEmap'].value = Emap ;
+    fmarch.uniforms['inEmap'].value = Emap; // bookmark 1
+    smarch.uniforms['inEmap'].value = Emap;
     init.render() ;
     splot.init() ;
     env.usgn.init(0) ;
@@ -1243,19 +1295,29 @@ function processFile(){
 
 
 // saveCsvFile : save an array to disk as comma separated values .........
-env.csvFileName = 'fcolor.csv' ;
-env.saveCsvFile = function(){
-    var link = document.createElement('a') ;
-    var data = "data:text;charset=utf-8," +
-    fcolor.width + ',' +
-    fcolor.height + ',' +
-    fcolor.value.join() ;
+env.csvFileName = 'fcolor_0.csv' ;
+env.saveCsvFile = function() {
+    const rounded = Array.from(fcolor.value, v => {
+        // if value is exactly an integer (within FP tolerance)
+        if (Math.abs(v - Math.round(v)) < 1e-9) {
+            return Math.round(v).toString();
+        }
+        // otherwise round to limited digits
+        return v.toFixed(5);
+    });
 
-    var csv = encodeURI( data ) ;
-    link.setAttribute( 'href', csv ) ;
-    link.setAttribute( 'download', env.csvFileName ) ;
-    link.click() ;
-}
+    // === blob version (same content, just alternative saving method) ===
+    var blobContent = fcolor.width + ',' + fcolor.height + ',' + rounded.join();
+    var blob = new Blob([blobContent], { type: 'text/csv;charset=utf-8;' });
+    var blobUrl = URL.createObjectURL(blob);
+
+    var blobLink = document.createElement('a');
+    blobLink.href = blobUrl;
+    blobLink.download = env.csvFileName;
+    blobLink.click();
+
+    URL.revokeObjectURL(blobUrl); // cleanup
+};
 
 
 
@@ -1283,8 +1345,137 @@ function processFile2(){
     }
 }
 
+function loadMaskFromURL(path){
+  console.log("Loading Mask file:", path);
+
+  fetch(path)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(/[,\s]+/);
+      const width = parseInt(data[0]);
+      const height = parseInt(data[1]);
+
+      const table = new Float32Array(width * height * 4);
+      let p = 0;
+      for (let i = 2; i < data.length; i++) {
+        table[p++] = parseFloat(data[i]);
+      }
+
+      // assign to GPU texture
+      hcolor.data = table;
+
+      // create plot
+      const plotM = new Abubu.Plot2D({
+        target: hcolor,
+        channel: 'r',
+        minValue: 0.,
+        maxValue: 1.,
+        colorbar: true,
+        canvas: canvas_5,
+      });
+
+      plotM.init();
+      plotM.render();
+
+      plotM.addMessage(
+        'Mask map', 0.01, 0.05, {
+          font: 'Bold 10pt Arial',
+          align: 'left',
+          style: "#ff0000",
+        }
+      );
+
+      // update uniforms for other shaders bookmark 2
+      laplr.uniforms['pMap'].value = hcolor;
+      laplr.render();
+      lapud.uniforms['pMap'].value = hcolor;
+      lapud.render();
+      fmarch.uniforms['inTissue'].value = hcolor;
+      smarch.uniforms['inTissue'].value = hcolor;
+
+      console.log("Mask loaded successfully!");
+    })
+    .catch(err => console.error("Error loading Mask file:", err));
+}
 
 
+function loadICFromURL(path){
+  //console.log("Loading IC file:", path);
+
+  fetch(path)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(',');
+
+      const width = parseInt(data[0]);
+      const height = parseInt(data[1]);
+
+      const table = new Float32Array(width * height * 4);
+      let p = 0;
+      for (let i = 2; i < data.length; i++){
+        table[p++] = parseFloat(data[i]);
+      }
+
+      fcolor.data = table;
+      scolor.data = table;
+      loading = false;
+      randomClick();
+    })
+    .catch(err => console.error("Error loading IC:", err));
+
+}
+
+
+function randomClick(){
+    // Math.random() has to be in circle of radius 0.5 (centered at 0.5,0.5)
+    var x, y;
+    do {
+        x = Math.random();
+        y = Math.random();
+    } while (Math.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2) > 0.4);
+    click.uniforms.clickPosition.value = [x, y] ;
+    click.render() ;
+    clickCopy.render() ;
+}
+
+function loadEMapFromURL(path){
+  console.log("Loading E-field file:", path);
+
+  fetch(path)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(/[,\s]+/);
+      const width  = parseInt(data[0]);
+      const height = parseInt(data[1]);
+      const table = new Float32Array(width * height * 4);
+      let p = 0;
+      for (let i = 2; i < data.length; i++){
+        table[p++] = parseFloat(data[i]);
+      }
+
+      // assign to texture
+      Emapin.data = table;
+
+      // render updates
+      plotEx.render();
+      plotEy.render();
+
+      efmap.uniforms['Einit'].value = Emapin;
+      efmap.render();
+
+      console.log("E-field map loaded successfully!");
+    })
+    .catch(err => console.error("Error loading E-field file:", err));
+}
 
 
 function processFileE(){
@@ -1354,11 +1545,15 @@ function createGui(){
     var exe = panel.addFolder('Execution') ;
     exe.add(env,'time').listen() ;
     exe.add(env,'FTE').step(0.001).listen();
-    env.capture_sample_control = exe.add(env,'capture_sample').onChange(function(){
-        capture_end_time = env.time + 1000 ;
-    }) ;
     exe.add(env,'initialize') ;
     exe.add(env,'running').listen() ;
+    exe.add( env, 'tiptVisiblity' ).name('Plot Tip Trajectory?').onChange(function(){
+            plot.setTiptVisiblity(env.tiptVisiblity) ;
+            plot.render() ;
+        } ) ;
+    exe.add(env,'tiptThreshold',-10,10.0).step(0.01).name('Tip Threshold [mv]').onChange(function(){
+            plot.setTiptThreshold(env.tiptThreshold) ;
+        } ) ;
     exe.open() ;
 }
 
