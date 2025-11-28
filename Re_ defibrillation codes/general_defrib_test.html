@@ -66,7 +66,7 @@ void main() {
 
     //float theta=PI*450.0/180.0;
     
-    if(mod(currtime,stim_period)<Etimeact){
+    if(currtime >= 0.0 && mod(currtime,stim_period)<Etimeact){
     
         float theta=Theta0+(omega/1000.)*mod(currtime,stim_period);
         
@@ -730,11 +730,11 @@ var env = {
 		height : 1024,
 		clickRadius : 0.06 ,
 		clickPosition  : [0.,0.] ,
-		Etimeact : 50.,
+		Etimeact : 20.,
 		Theta0 : 0.,
-		omega : 0., // rad/s
-		stim_period : 500., //118.
-		Emax : 10.,
+		omega : 10., // rad/s
+		stim_period : 400., //118.
+		Emax : 50.,
         Temp : 37.0,
 		skip : 40,
         tiptThreshold : 0.5,
@@ -1030,12 +1030,18 @@ function march(){
     env.time += env.dt ;
 
     // cal FTE
-    count_activated_cells.render() ;
-    env.reduceS1.render() ;
-    env.reduceS2.render() ;  
-    env.FTE = reductionResultS2.value[0] ;
-    FTE_texture.data = new Float32Array([env.FTE,0,0,0]) ;
-    //env.time += env.dt*2. ;
+    if (-env.dt < env.time % (env.stim_period/3) && env.time % (env.stim_period/3) < 2*env.dt){
+        count_activated_cells.render() ;
+        env.reduceS1.render() ;
+        env.reduceS2.render() ;  
+        env.FTE = reductionResultS2.value[0] ;
+        FTE_texture.data = new Float32Array([env.FTE,0,0,0]) ;
+        //env.time += env.dt*2. ;
+        //console.log('Time: ' + env.time.toFixed(2) + ' ms, FTE: ' + env.FTE.toFixed(4)) ;
+    }
+    else{
+        env.FTE = 1.5 ;
+    }
 }
 
 function saveCsvFile(data, name) {
@@ -1052,28 +1058,100 @@ function saveCsvFile(data, name) {
   document.body.removeChild(link);
   URL.revokeObjectURL(link.href);
 }
+function range(i, j, step = 5) {
+  const arr = [];
+  for (let x = i; x < j; x += step) {
+    arr.push(x);
+  }
+  return arr;
+}
 
+function updateIC(){
+    if (env.FTE < 0.1 && env.time > 50) {
+        env.defribs_used.push([IC_name_list[env.IC_idx],cur_time, Math.floor(env.time / 500 + 1)]);
+        console.log(IC_name_list[env.IC_idx] + '_cur_time_' + cur_time + ' used ' + Math.floor(env.time) + ' ' + Math.floor(env.time / 500 + 1) + ' defribs');
+        env.cur_time_idx += 1;
+        if (env.cur_time_idx >= cur_time_list.length){
+            env.cur_time_idx = 0;
+            env.IC_idx += 1;
+            if (env.IC_idx >= IC_name_list.length){
+                console.log('Simulation completed');
+                const csvText = env.defribs_used.map(pair => pair.join(',')).join('\n');
+                saveCsvFile(csvText.split(','), 'defribs_results' +  env.stim_period + 'ms_period' + env.omega + 'rad' + env.Etimeact + 'Etimeact_' + env.Emax + 'Emax' );
+                env.running = false;
+            }
+        }
+        cur_time_list = range(0,IC_time_list[env.IC_idx]-1000,10);
+        cur_time = cur_time_list[env.cur_time_idx];
+        loadICFromURL(IC_name_list[env.IC_idx]);
+        env.initialize();
+        env.time = -cur_time; 
+        implementMask(false); 
+        loading = true;
+    }
+}
 
 j=0;
 
-var IC_name_list = []
+var IC_name_list = [];
+var IC_time_list = [];
+var cur_time_list = [];
+var allowedNames = new Set();
 
-fetch('data_1/')
-  .then(response => response.text())
+// 1. Load sustain_results.csv
+fetch('sustain_results.csv')
+  .then(res => res.text())
+  .then(csv => {
+
+    csv.trim().split('\n').forEach(line => {
+      const [fullpath, timeStr] = line.split(',');
+      const time = Number(timeStr);
+
+      if (!fullpath || !timeStr) return;
+
+      // Extract filename only (remove IC_1/)
+      const filename = fullpath.trim().split('/').pop();
+    
+      if (time > 1500) {
+        allowedNames.add(filename);
+        IC_time_list.push(time);
+      }
+    });
+
+    console.log("Allowed filenames (time > 1500):", allowedNames);
+
+    // 2. Load directory listing for IC_1/
+    return fetch('IC_1/');
+  })
+  .then(res => res.text())
   .then(html => {
-    // match only href links like href="fcolor_XXXX.csv"
     const matches = [...html.matchAll(/href="(fcolor_[^"']+\.csv)"/g)];
 
-    // assign unique file paths to IC_name_list
-    const uniqueFiles = [...new Set(matches.map(m => 'data_1/' + m[1]))];
+    // Build full paths inside IC_1/
+    const allFiles = matches.map(m => 'IC_1/' + m[1]);
 
-    IC_name_list.push(...uniqueFiles);
+    // 3. Filter using allowedNames (only keep those with time > 1500)
+    const filtered = allFiles.filter(path => {
+      const filename = path.split('/').pop();
+      return allowedNames.has(filename);
+    });
 
-    console.log('IC_name_list assigned:', IC_name_list);
-    env.IC_idx = 0
-    loadICFromURL(IC_name_list[env.IC_idx])
+    IC_name_list.push(...filtered);
+
+    console.log("Final IC_name_list:", IC_name_list);
+
+    if (IC_name_list.length > 0) {
+      env.IC_idx = 0;
+      loadICFromURL(IC_name_list[env.IC_idx]);
+      cur_time_list = range(0,IC_time_list[env.IC_idx]-1000,10)
+      env.cur_time_idx = 0;
+      cur_time = cur_time_list[env.cur_time_idx];
+      env.time = -cur_time;
+    } else {
+      console.warn("No fcolor_* matched time > 1500");
+    }
   })
-  .catch(err => console.error('Failed to load directory index:', err));
+  .catch(err => console.error("Error:", err));
 
 
 var loading = false;
@@ -1090,31 +1168,18 @@ function run(){
 
             for(var i = 0; i<env.skip ; i++){
                 if (!loading){
-                    if (env.FTE < 0.15 && env.time > 50) {
-                        console.log(IC_name_list[env.IC_idx] + ' used ' + Math.floor(env.time / 500 + 1) + ' defribs');
-                        env.defribs_used.push([IC_name_list[env.IC_idx], Math.floor(env.time / 500 + 1)]);
-                        env.initialize();
-                        env.IC_idx += 1;
-                        if (env.IC_idx >= IC_name_list.length){
-                            console.log('Simulation completed');
-
-                            const csvText = env.defribs_used.map(pair => pair.join(',')).join('\n');
-                            saveCsvFile(csvText.split(','), 'defribs_results');
-
-                            env.running = false;
-                        }
-                        loading = true;
-                        loadICFromURL(IC_name_list[env.IC_idx]);
-                    }
-                    if (env.time % env.stim_period < 2*env.dt){
+                    updateIC();
+                    if (env.time >= 0 && env.time % env.stim_period < 2*env.dt){
                         implementMask(true);
 
                         //console.log('Hole Mask implemented at time ' + env.time);
                     }
-                    if (env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){
+                    /*
+                    if (env.time > 0 && env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){
                         implementMask(false);
                         //console.log('No Hole Mask implemented at time ' + env.time);
-                    }
+                    }*/
+
                     march();
 
                     env.usgn.update(env.time) ;

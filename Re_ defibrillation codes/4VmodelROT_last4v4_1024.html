@@ -575,9 +575,11 @@ void main() {
     //s += dt*dsdt;
 
 
-    if(u>2.8) u=2.8;
+    //if(u>2.8) u=2.8;
 
-    if(u<-1.0) u=-1.0;
+    //if(u<0.0) u=0.0;
+
+    if(w > 1.0) w=1.0;
 
 	}else{
 		color=vec4(0.);
@@ -627,7 +629,7 @@ canvas_5.style.position = "absolute";
 
 // Object to be used for interactions ....................................
 var env = {
-        dt : 0.0015 ,
+        dt : 0.015 ,
         diffCoef :0.001,
         time : 0 ,
 		Lx : 10.,
