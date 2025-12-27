@@ -328,7 +328,7 @@ void main() {
 
         //if ( length(cc-0.5)<0.1 || cc.x < 1.0/sizex || cc.x > (1.0 - 1.0/sizex) || cc.y < 1.0/sizey || cc.y > (1.0 - 1.0/sizey)){
         if ( length(cc-0.5)<0.1){
-            colorH.r = 0.;
+            colorH.r = -84.;
             colorH.g = 0.;
             colorH.b = 0.;
             colorH.a = 0.;
@@ -556,9 +556,9 @@ void main() {
 
 
 
-    if(u>1.5.) u=1.5.;
+    if(u>1.5) u=1.5;
 
-    if(u<-1.5.) u=-1.5.;
+    if(u<-1.5) u=-1.5;
 
 	}else{
 		color=vec4(0.);
@@ -608,19 +608,19 @@ canvas_5.style.position = "absolute";
 
 // Object to be used for interactions ....................................
 var env = {
-        dt : 0.025 ,
+        dt : 0.025,
         diffCoef :0.002,//0.001
         time : 0 ,
 		Lx : 20.,//10.
 		Ly : 20.,//10.
         running : false ,
-		width : 1000,
-		height : 1000,
+		width : 1024,
+		height : 1024,
 		clickRadius : 0.06 ,
 		clickPosition  : [0.,0.] ,
 		Etimeact : 50.,
 		Theta0 : 0.,
-		omega : 10., // rad/s
+		omega : 0., // rad/s
 		stim_period : 1000.,
 		Emax : 10.,
         Temp : 37.0,
