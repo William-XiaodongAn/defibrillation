@@ -1042,7 +1042,7 @@ function run(){
                     savePlot2DPrefix = 'fcolor_' + IC_idx;
                     savePlot2D() ;
                     env.csvFileName = 'fcolor_' + IC_idx + '.csv' ;
-                    
+
                     // cal FTE
                     count_activated_cells.render() ;
                     env.reduceS1.render() ;
@@ -1055,7 +1055,7 @@ function run(){
                     IC_idx += 1;
                     env.running = false;
                     loadICFromURL('fcolor_0.csv')
-                    if (IC_idx < 1000){
+                    if (IC_idx < 150){
                         setTimeout(function(){
                             env.running = true;
                         }, 1000);
