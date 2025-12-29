@@ -728,7 +728,7 @@ var env = {
         running : false ,
 		width : 1024,
 		height : 1024,
-		clickRadius : .06 ,
+		clickRadius : 0.06 ,
 		clickPosition  : [0.,0.] ,
 		Etimeact : 0.,
 		Theta0 : 0.,
@@ -739,6 +739,8 @@ var env = {
 		skip : 40,
         tiptThreshold : 0.5,
         tiptVisiblity : false,
+        hole_mask_loaded : false,
+
   } ;
 
 
@@ -748,6 +750,8 @@ var env = {
 var fcolor = new Abubu.Float32Texture(env.width,env.height) ;
 var scolor = new Abubu.Float32Texture(env.width,env.height) ;
 var hcolor = new Abubu.Float32Texture(env.width,env.height) ;
+var mask_holes = new Float32Array(env.width * env.height * 4);
+var mask_no_holes = new Float32Array(env.width * env.height * 4);
 var LRmap = new Abubu.Float32Texture(env.width,env.height) ;
 var UDmap = new Abubu.Float32Texture(env.width,env.height) ;
 var Emapin = new Abubu.Float32Texture(env.width,env.height) ;
@@ -1033,12 +1037,12 @@ function march(){
     FTE_texture.data = new Float32Array([env.FTE,0,0,0]) ;
     //env.time += env.dt*2. ;
 }
-function saveCsvFile(textureValue, name) {
-  // textureValue is a Float32Array (e.g., texture.value)
-  const csv = Array.from(textureValue).join(',');
+
+function saveCsvFile(data, name) {
+  // handle either string or array input
+  const csv = Array.isArray(data) ? data.join(',') : data;
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = `${name}.csv`;
@@ -1046,103 +1050,68 @@ function saveCsvFile(textureValue, name) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-
   URL.revokeObjectURL(link.href);
 }
 
+
 j=0;
+
+var IC_name_list = []
+
+fetch('IC_1/')
+  .then(response => response.text())
+  .then(html => {
+    // match only href links like href="fcolor_XXXX.csv"
+    const matches = [...html.matchAll(/href="(fcolor_[^"']+\.csv)"/g)];
+
+    // assign unique file paths to IC_name_list
+    const uniqueFiles = [...new Set(matches.map(m => 'IC_1/' + m[1]))];
+
+    IC_name_list.push(...uniqueFiles);
+
+    console.log('IC_name_list assigned:', IC_name_list);
+    env.IC_idx = 0
+    loadICFromURL(IC_name_list[env.IC_idx])
+  })
+  .catch(err => console.error('Failed to load directory index:', err));
+
+
 var loading = false;
 // before run it, run "python -m http.server 8000" in local folder
-var IC_idx = 0;
-loadICFromURL('fcolor_' + IC_idx + '.csv')
-loadMaskFromURL('maskcircle.csv')
 
-function record_tip(freq,IC_idx){
-    if (env.time% freq <= env.dt*2 ) {
-        env.pendingTiptSave = Math.floor(env.time);
-        console.log('tip at ' + env.pendingTiptSave);
-        // perform save while simulation is paused
-        if (env.pendingTiptSave != undefined) {
-            const arrCopy = plot.stipt.value.slice(); // one readback while paused
-            const name = 'tip_' + IC_idx + '_' + Math.floor(env.time) + 'ms';
-            setTimeout(() => saveCsvFile(arrCopy, name), 0);
-            env.pendingTiptSave = undefined;
-        }
-        env.tiptVisiblity = false;
-        plot.setTiptVisiblity(env.tiptVisiblity);
-    }
+loadMaskFromURL('maskcirclenew1.csv','maskcircle.csv')
+implementMask(false)
+loadEMapFromURL('Emask1024circ_2cm.csv')
 
-    else if (env.time% (freq - 1) <= env.dt*2 && env.tiptVisiblity == false) {
-        env.tiptVisiblity = true;
-        plot.setTiptVisiblity(env.tiptVisiblity);
-    }
-}
-function record_fcolor(freq,IC_idx){
-    if (env.time > 0 && env.time <= 3000 && (env.time% freq <= env.dt*2) ) {
-        // avoid multiple downloads within small range
-        env.csvFileName = 'fcolor_' + IC_idx + '_' + Math.floor(env.time) + 'ms' ; //the name should reflect the time
-        console.log('fcolor at ' + Math.floor(env.time));
-        env.saveCsvFile() ;
-    }
-}
+sustain = ''
 
-function record_FTE(){
-    if (env.time<3000){
-        env.csv_download.push(env.FTE);
-    }
-}
-
-savePlot2DPrefix = '' ;
-savePlot2D    = function(){
-    //this.running = false ;
-    var prefix ;
-    try{
-        prefix = eval(savePlot2DPrefix) ;
-    }catch(e){
-        prefix = savePlot2DPrefix ;
-    }
-    Abubu.saveCanvas( 'canvas_1',
-    {
-        prefix  : prefix,
-        format  : 'png'
-    } ) ;
-}
-
-env.csv_download = [];
-env.FTE_downloaded = false;
 function run(){
         if (env.running){
-            for(var i = 0 ; i<env.skip ; i++){
+
+            for(var i = 0; i<env.skip ; i++){
                 if (!loading){
+                    march() ;
+                    if (env.FTE < 0.05) {
+                        sustain += IC_name_list[env.IC_idx] + ',' + env.time + '\n';
+                        env.time = 0;
+                        env.IC_idx += 1;
+                        if (env.IC_idx >= IC_name_list.length){
+                            console.log('Simulation completed');
 
-                march();
-                if (env.time < 3000){
+                            saveCsvFile(sustain, 'sustain_results');
 
-
-                }
-                else{
-                    // sleep for a while to allow the user to download the data
-                    savePlot2DPrefix = 'fcolor_' + IC_idx;
-                    savePlot2D() ;
-                    env.csvFileName = 'fcolor_' + IC_idx + '.csv' ;
-                    if (env.FTE > 0.05){
-                        env.saveCsvFile();
-                    }
-                    IC_idx += 1;
-                    env.running = false;
-                    loadICFromURL('fcolor_0.csv')
-                    if (IC_idx < 1000){
-                        setTimeout(function(){
-                            env.running = true;
-                        }, 1000);
+                            env.running = false;
                         }
-                    env.time = 0.;
+                        loading = true;
+                        loadICFromURL(IC_name_list[env.IC_idx]);
+                    }
+
+                    env.usgn.update(env.time) ;
+                    //env.ssgn.update(env.time) ;
+                    j=j+1;
+
                 }
 
-                env.usgn.update(env.time) ;
-                //env.ssgn.update(env.time) ;
-                j=j+1;
-                }
             }
         }
         splot.render() ;
@@ -1295,29 +1264,19 @@ function processFile(){
 
 
 // saveCsvFile : save an array to disk as comma separated values .........
-env.csvFileName = 'fcolor_0.csv' ;
-env.saveCsvFile = function() {
-    const rounded = Array.from(fcolor.value, v => {
-        // if value is exactly an integer (within FP tolerance)
-        if (Math.abs(v - Math.round(v)) < 1e-9) {
-            return Math.round(v).toString();
-        }
-        // otherwise round to limited digits
-        return v.toFixed(5);
-    });
+env.csvFileName = 'fcolor.csv' ;
+env.saveCsvFile = function(){
+    var link = document.createElement('a') ;
+    var data = "data:text;charset=utf-8," +
+    fcolor.width + ',' +
+    fcolor.height + ',' +
+    fcolor.value.join() ;
 
-    // === blob version (same content, just alternative saving method) ===
-    var blobContent = fcolor.width + ',' + fcolor.height + ',' + rounded.join();
-    var blob = new Blob([blobContent], { type: 'text/csv;charset=utf-8;' });
-    var blobUrl = URL.createObjectURL(blob);
-
-    var blobLink = document.createElement('a');
-    blobLink.href = blobUrl;
-    blobLink.download = env.csvFileName;
-    blobLink.click();
-
-    URL.revokeObjectURL(blobUrl); // cleanup
-};
+    var csv = encodeURI( data ) ;
+    link.setAttribute( 'href', csv ) ;
+    link.setAttribute( 'download', env.csvFileName ) ;
+    link.click() ;
+}
 
 
 
@@ -1344,11 +1303,10 @@ function processFile2(){
         scolor.data = table ;
     }
 }
+var finished_loading = false;
+function loadMaskFromURL(path1,path2){
 
-function loadMaskFromURL(path){
-  console.log("Loading Mask file:", path);
-
-  fetch(path)
+  fetch(path1)
     .then(res => {
       if (!res.ok) throw new Error("Fetch failed with " + res.status);
       return res.text();
@@ -1358,49 +1316,67 @@ function loadMaskFromURL(path){
       const width = parseInt(data[0]);
       const height = parseInt(data[1]);
 
-      const table = new Float32Array(width * height * 4);
       let p = 0;
       for (let i = 2; i < data.length; i++) {
-        table[p++] = parseFloat(data[i]);
+        mask_holes[p++] = parseFloat(data[i]);
       }
 
-      // assign to GPU texture
-      hcolor.data = table;
+      console.log("Mask_holes loaded successfully!");
+    })
+    .catch(err => console.error("Error loading Mask file:", err));
 
-      // create plot
-      const plotM = new Abubu.Plot2D({
-        target: hcolor,
-        channel: 'r',
-        minValue: 0.,
-        maxValue: 1.,
-        colorbar: true,
-        canvas: canvas_5,
-      });
+  fetch(path2)
+    .then(res => {
+      if (!res.ok) throw new Error("Fetch failed with " + res.status);
+      return res.text();
+    })
+    .then(result => {
+      const data = result.split(/[,\s]+/);
+      const width = parseInt(data[0]);
+      const height = parseInt(data[1]);
 
-      plotM.init();
-      plotM.render();
-
-      plotM.addMessage(
-        'Mask map', 0.01, 0.05, {
-          font: 'Bold 10pt Arial',
-          align: 'left',
-          style: "#ff0000",
-        }
-      );
-
-      // update uniforms for other shaders bookmark 2
-      laplr.uniforms['pMap'].value = hcolor;
-      laplr.render();
-      lapud.uniforms['pMap'].value = hcolor;
-      lapud.render();
-      fmarch.uniforms['inTissue'].value = hcolor;
-      smarch.uniforms['inTissue'].value = hcolor;
-
-      console.log("Mask loaded successfully!");
+      let p = 0;
+      for (let i = 2; i < data.length; i++) {
+        mask_no_holes[p++] = parseFloat(data[i]);
+      }
+      finished_loading = true;
+      console.log("Mask_no_holes loaded successfully!");
     })
     .catch(err => console.error("Error loading Mask file:", err));
 }
+function implementMask(holes = true){
+    // wait finished_loading, and always wait until it is true
+    // redo the function until it is true
+    if (!finished_loading){
+        console.log("Mask files not loaded yet, waiting...");
+        setTimeout(() => implementMask(holes), 100); // check again after 100ms
+        return;
+    }
 
+    if (holes){
+        //console.log("Implementing mask with holes");
+        hcolor.data = mask_holes;
+        laplr.uniforms['pMap'].value = hcolor;
+        laplr.render();
+        lapud.uniforms['pMap'].value = hcolor;
+        lapud.render();
+        fmarch.uniforms['inTissue'].value = hcolor;
+        smarch.uniforms['inTissue'].value = hcolor;
+        env.hole_mask_loaded = true;
+    } 
+    else {
+        //console.log("Implementing mask without holes");
+        hcolor.data = mask_no_holes;
+        laplr.uniforms['pMap'].value = hcolor;
+        laplr.render();
+        lapud.uniforms['pMap'].value = hcolor;
+        lapud.render();
+        fmarch.uniforms['inTissue'].value = hcolor; 
+        smarch.uniforms['inTissue'].value = hcolor;
+        env.hole_mask_loaded = false;
+    }
+ 
+}
 
 function loadICFromURL(path){
   //console.log("Loading IC file:", path);
@@ -1424,25 +1400,14 @@ function loadICFromURL(path){
 
       fcolor.data = table;
       scolor.data = table;
+      //console.log("IC loaded successfully!");
       loading = false;
-      randomClick();
+
     })
     .catch(err => console.error("Error loading IC:", err));
 
 }
 
-
-function randomClick(){
-    // Math.random() has to be in circle of radius 0.5 (centered at 0.5,0.5)
-    var x, y;
-    do {
-        x = Math.random();
-        y = Math.random();
-    } while (Math.sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2) > 0.4);
-    click.uniforms.clickPosition.value = [x, y] ;
-    click.render() ;
-    clickCopy.render() ;
-}
 
 function loadEMapFromURL(path){
   console.log("Loading E-field file:", path);
