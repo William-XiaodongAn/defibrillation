@@ -578,7 +578,7 @@ void main() {
 
    float dudt = diffCoef*laplacian ;
 
-
+    /*
     float tau_pv=7.99;
     float tau_v1=9.8;
     float tau_v2=312.5;
@@ -593,7 +593,7 @@ void main() {
     float V_c=0.13;
     float V_v=0.04;
     float C_m=1.0;
-    float C_si=1.0;
+    float C_si=1.0;*/
 
     float T0=37.0;
     float q10v=1.5;
@@ -608,7 +608,7 @@ void main() {
     float etasi = 1.0+betasi*(Temp-T0);
 
 
-  /*float tau_pv=3.33;
+    float tau_pv=3.33;
     float tau_v1=15.6;
     float tau_v2=5.0;
     float tau_pw=350.0;
@@ -622,7 +622,7 @@ void main() {
     float V_c=0.15;
     float V_v=0.04;
     float C_m=1.0;
-    float C_si=1.0;*/
+    float C_si=1.0;
 
     float p = step(V_c, u) ;
     float q = step(V_v, u) ;
@@ -650,9 +650,9 @@ void main() {
 
 
 
-    if(u>1.5) u=1.5;
+    if(u>3.) u=3.;
 
-    if(u<-1.5) u=-1.5;
+    if(u<-3.) u=-3.;
 
 	}else{
 		color=vec4(0.);
@@ -1006,7 +1006,22 @@ function record_fcolor(freq,IC_idx){
         env.saveCsvFile() ;
     }
 }
+function saveCsvFile(textureValue, name) {
+  // textureValue is a Float32Array (e.g., texture.value)
+  const csv = Array.from(textureValue).join('');
 
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${name}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(link.href);
+}   
 savePlot2DPrefix = '' ;
 savePlot2D    = function(){
     //this.running = false ;
@@ -1063,7 +1078,14 @@ function run(){
             for(var i = 0; i<env.skip ; i++){
                 if (!loading){
                     march() ;
-                    if (env.FTE < 0.05) {
+                    if (env.time < 500.1 && j % 10 == 0){
+                        count_activated_cells.render() ;
+                        env.reduceS1.render() ;
+                        env.reduceS2.render() ;  
+                        env.FTE = reductionResultS2.value[0] ;  
+
+                    }
+                    if ((env.time > 50 && env.FTE < 0.05) || env.time >= 7000) {
                         sustain += IC_name_list[env.IC_idx] + ',' + env.time + '\n';
                         env.time = 0;
                         env.IC_idx += 1;
@@ -1314,7 +1336,7 @@ function loadICFromURL(path){
       fcolor.data = table;
       scolor.data = table;
       loading = false;
-      randomClick();
+      //randomClick();
     })
     .catch(err => console.error("Error loading IC:", err));
 
