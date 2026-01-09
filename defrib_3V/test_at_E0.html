@@ -1068,10 +1068,10 @@ fetch('IC/')
 var loading = false;
 // before run it, run "python -m http.server 8000" in local folder
 
-omega_lst = [0]; //[0,50,100];
-omega_idx = 0;
+omega_lst = [30,50,100]; //[0,50,100];
+omega_idx = 1;
 Emax_lst = [5,15,25,35,45,55]; //[0,20,40,60,80,100,120,140,160,180,200];
-Emax_idx = 0;
+Emax_idx = 1;
 
 const IC_dont_use = [];
 
@@ -1087,7 +1087,11 @@ function advanceCombination(){
         env.IC_idx = 1;
         Emax_idx += 1;
         if (Emax_idx >= Emax_lst.length){
-            return false; // all combinations done
+            Emax_idx = 1;
+            omega_idx += 1;
+            if (omega_idx >= omega_lst.length){
+                return false; // all combinations done
+            }
         }
     }
     return true;
@@ -1145,7 +1149,7 @@ function run(){
                         saveCsvFile(env.FTE_test, 'FTE_results_etimeact_' + env.Etimeact);   
                         // keep env.running false to stop the loop
                     } else {    
-                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '\n';
+                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + "_omega" + omega_lst[omega_idx] + '\n';
 
                         env.omega = omega_lst[omega_idx];
                         efmap.uniforms['omega'].value = env.omega;

@@ -1072,7 +1072,7 @@ omega_lst = [0];
 omega_idx = 0;
 Emax_lst = [10,15,20,25,30,35]; //[0,20,40,60,80,100,120,140,160,180,200];
 Emax_idx = 0;
-n_lst = [4];
+n_lst = [2,3,4,5,6,7];
 n_idx = 0;
 n_finished = false;
 const IC_dont_use = [];
@@ -1121,14 +1121,11 @@ function run(){
         if (env.running & !loading){
             for(var i = 0 ; i<env.skip ; i++){
                 env.FTE_step += 1;
-                let max_LEAP_time = env.stim_period * n_lst[n_idx];
+                let max_LEAP_time = env.stim_period * (n_lst[n_idx]-1) + env.Etimeact;
                 if (!n_finished && env.time > max_LEAP_time){
                     env.Emax = 0;
                     efmap.uniforms['Emax'].value = env.Emax;
                     n_finished = true;
-
-                }
-                if (env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){
 
                 }
                 if (n_finished && env.FTE_step % 10 == 0 && env.march_can_go){ // its actual measurement DT is 10*2*env.dt = 0.5 ms
@@ -1142,7 +1139,7 @@ function run(){
                     env.FTE_test += env.FTE.toFixed(2) + ',';
 
                 }
-                if (n_finished && (env.time > 85 * n_lst[n_idx] +500.1 || ( env.time > 50 && env.FTE < 0.05)) ){
+                if (n_finished && (env.time > max_LEAP_time + 500 || ( env.time > 50 && env.FTE < 0.05)) ){
                     env.march_can_go = false;
                     env.running = false;
                     env.initialize();
