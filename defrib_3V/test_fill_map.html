@@ -611,12 +611,12 @@ void main() {
     float tau_pv=3.33;
     float tau_v1=15.6;
     float tau_v2=5.0;
-    float tau_pw=350.0;
+    float tau_pw=1600.0;//350
     float tau_mw=80.0;
     float tau_d=0.407;
     float tau_0=9.0;
     float tau_r=34.0;
-    float tau_si=26.5;
+    float tau_si=28.5;//26.5
     float K=15.0;
     float V_csi=0.45;
     float V_c=0.15;
@@ -652,7 +652,7 @@ void main() {
 
     if(u>3.) u=3.;
 
-    if(u<-3.) u=-3.;
+    if(u<-0.) u=-0.; // u = u*100-85, -85 to 220
 
 	}else{
 		color=vec4(0.);
@@ -1068,9 +1068,13 @@ fetch('IC/')
 var loading = false;
 // before run it, run "python -m http.server 8000" in local folder
 
-omega_lst = [0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100];
+omega_lst = [0,25,65];
 omega_idx = 0;
-Emax_lst = [30,40,50]; //[0,20,40,60,80,100,120,140,160,180,200];
+//make e list as range(0,50,2)
+Emax_lst = [];
+for (var e = 3; e <= 20; e += 1) {
+    Emax_lst.push(e);
+}
 Emax_idx = 0;
 n_lst = [1];
 n_idx = 0;
@@ -1108,7 +1112,7 @@ efmap.render() ;
 loadMaskFromURL('mask_1024_1.csv')
 loadEMapFromURL('Emask_1024_uniform.csv')
     
-env.FTE_test = 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '\n';
+env.FTE_test = 'IC' + 0 + '_Emax' + Emax_lst[Emax_idx] + '_omega' + omega_lst[omega_idx] + '\n';
 
 env.FTE_step = 0;
 function run(){
@@ -1132,7 +1136,7 @@ function run(){
                     efmap.uniforms['Emax'].value = 0.;
                 }
 
-                if ((env.time > 150 || ( env.time > 50 && env.FTE >0.9)) ){
+                if ((env.time > 400 || ( env.time > 50 && env.FTE >0.73)) ){
                     env.march_can_go = false;
                     env.running = false;
                     env.initialize();
@@ -1141,10 +1145,10 @@ function run(){
                     var cont = advanceCombination();
                     if (!cont) {
                         console.log('All combinations completed. Stopping.');
-                        saveCsvFile(env.FTE_test, 'FTE_results_n' + n_lst[n_lst.length -1]);   
+                        saveCsvFile(env.FTE_test, 'FTE_results_omega' + omega_lst[omega_idx] + 'taupw and tausi and ulower range modified');   
                         // keep env.running false to stop the loop
                     } else {    
-                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '_n' + n_lst[n_idx] + '\n';
+                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '_omega' + omega_lst[omega_idx] + '\n';
 
                         env.omega = omega_lst[omega_idx];
                         efmap.uniforms['omega'].value = env.omega;
