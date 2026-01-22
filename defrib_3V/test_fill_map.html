@@ -1068,6 +1068,8 @@ fetch('IC/')
 var loading = false;
 // before run it, run "python -m http.server 8000" in local folder
 
+
+
 omega_lst = [0,25,65];
 omega_idx = 0;
 //make e list as range(0,50,2)
@@ -1076,7 +1078,7 @@ for (var e = 3; e <= 20; e += 1) {
     Emax_lst.push(e);
 }
 Emax_idx = 0;
-n_lst = [1];
+n_lst = [1000, 4000, 7000, 10000, 13000, 16000]; // list(range(1000,17000,3000))
 n_idx = 0;
 n_finished = false;
 const IC_dont_use = [];
@@ -1091,7 +1093,11 @@ function advanceCombination(){
         omega_idx += 1;
         if (omega_idx >= omega_lst.length){
             omega_idx = 0;
-            return false; // all combinations done
+            n_idx += 1;
+            if (n_idx >= n_lst.length){
+                n_idx = 0;
+                return false; // all combinations done
+            }
         }
     }
     return true;
@@ -1109,10 +1115,10 @@ env.Emax = Emax_lst[Emax_idx];
 efmap.uniforms['omega'].value = env.omega;
 efmap.uniforms['Emax'].value = env.Emax;
 efmap.render() ;
-loadMaskFromURL('mask_1024_1.csv')
+loadMaskFromURL('mask_1024_1_' + n_lst[n_idx] + '.csv')
 loadEMapFromURL('Emask_1024_uniform.csv')
     
-env.FTE_test = 'IC' + 0 + '_Emax' + Emax_lst[Emax_idx] + '_omega' + omega_lst[omega_idx] + '\n';
+env.FTE_test = 'IC' + 0 + '_Emax' + Emax_lst[Emax_idx] + '_omega' + omega_lst[omega_idx] + '_n' + n_lst[n_idx] + '\n';
 
 env.FTE_step = 0;
 function run(){
@@ -1136,7 +1142,7 @@ function run(){
                     efmap.uniforms['Emax'].value = 0.;
                 }
 
-                if ((env.time > 400 || ( env.time > 50 && env.FTE >0.73)) ){
+                if ((env.time > 400 || ( env.time > 50 && env.FTE >0.78)) ){
                     env.march_can_go = false;
                     env.running = false;
                     env.initialize();
@@ -1148,7 +1154,9 @@ function run(){
                         saveCsvFile(env.FTE_test, 'FTE_results_omega' + omega_lst[omega_idx] + 'taupw and tausi and ulower range modified');   
                         // keep env.running false to stop the loop
                     } else {    
-                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '_omega' + omega_lst[omega_idx] + '\n';
+                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '_omega' + omega_lst[omega_idx] + '_n' + n_lst[n_idx] + '\n';
+
+                        loadMaskFromURL('mask_1024_1_' + n_lst[n_idx] + '.csv')
 
                         env.omega = omega_lst[omega_idx];
                         efmap.uniforms['omega'].value = env.omega;
