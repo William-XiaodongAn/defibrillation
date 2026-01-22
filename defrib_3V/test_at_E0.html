@@ -712,7 +712,7 @@ var env = {
 		height : 1024,
 		clickRadius : 0.06 ,
 		clickPosition  : [0.,0.] ,
-		Etimeact : 10.,
+		Etimeact : 100.,
 		Theta0 : 0.,
 		omega : 0., // rad/s
 		stim_period : 10000.,
@@ -1126,7 +1126,7 @@ function run(){
                 if (env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){
 
                 }
-                if (env.time < 1000.1 && env.FTE_step % 10 == 0 && env.march_can_go){ // its actual measurement DT is 10*2*env.dt = 0.5 ms
+                if (env.time < 500.1 && env.FTE_step % 10 == 0 && env.march_can_go){ // its actual measurement DT is 10*2*env.dt = 0.5 ms
                     //record_fcolor(350); // record fcolor at 350 ms
                     //record_tip(350); // record tip at 351 ms
 
@@ -1137,7 +1137,7 @@ function run(){
                     env.FTE_test += env.FTE.toFixed(2) + ',';
 
                 }
-                if (env.time > 1000.1 || ( env.time > 50 && env.FTE < 0.0001)){
+                if (env.time > 500.1 || ( env.time > 50 && env.FTE < 0.0001)){
                     env.march_can_go = false;
                     env.running = false;
                     env.initialize();
