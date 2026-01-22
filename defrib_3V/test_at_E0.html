@@ -715,8 +715,8 @@ var env = {
 		Etimeact : 10.,
 		Theta0 : 0.,
 		omega : 0., // rad/s
-		stim_period : 5000.,
-		Emax : 10.,
+		stim_period : 10000.,
+		Emax : 50.,
         Temp : 37.0,
 		skip : 40,
   } ;
@@ -1068,10 +1068,10 @@ fetch('IC/')
 var loading = false;
 // before run it, run "python -m http.server 8000" in local folder
 
-omega_lst = [30,50,100]; //[0,50,100];
-omega_idx = 1;
-Emax_lst = [5,15,25,35,45,55]; //[0,20,40,60,80,100,120,140,160,180,200];
-Emax_idx = 1;
+omega_lst = [0,50,100]; //[0,50,100];
+omega_idx = 0;
+Emax_lst = [50]; //[0,20,40,60,80,100,120,140,160,180,200];
+Emax_idx = 0;
 
 const IC_dont_use = [];
 
@@ -1084,10 +1084,10 @@ function advanceCombination(){
         env.IC_idx += 1; // skip this IC
     }
     if(env.IC_idx >= env.IC_COUNT){
-        env.IC_idx = 1;
+        env.IC_idx = 0;
         Emax_idx += 1;
         if (Emax_idx >= Emax_lst.length){
-            Emax_idx = 1;
+            Emax_idx = 0;
             omega_idx += 1;
             if (omega_idx >= omega_lst.length){
                 return false; // all combinations done
@@ -1108,8 +1108,8 @@ env.Emax = Emax_lst[Emax_idx];
 efmap.uniforms['omega'].value = env.omega;
 efmap.uniforms['Emax'].value = env.Emax;
 efmap.render() ;
-loadMaskFromURL('mask_1024_1.csv')
-loadEMapFromURL('Emask_1024_uniform.csv')
+loadMaskFromURL('mask_1024_1_16000.csv')
+loadEMapFromURL('Emask1024circ_20cm.csv')
     
 env.FTE_test = 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + '\n';
 
@@ -1126,7 +1126,7 @@ function run(){
                 if (env.time % env.stim_period > env.Etimeact && env.time % env.stim_period < (env.Etimeact + 2*env.dt)){
 
                 }
-                if (env.time < 500.1 && env.FTE_step % 10 == 0 && env.march_can_go){ // its actual measurement DT is 10*2*env.dt = 0.5 ms
+                if (env.time < 1000.1 && env.FTE_step % 10 == 0 && env.march_can_go){ // its actual measurement DT is 10*2*env.dt = 0.5 ms
                     //record_fcolor(350); // record fcolor at 350 ms
                     //record_tip(350); // record tip at 351 ms
 
@@ -1137,7 +1137,7 @@ function run(){
                     env.FTE_test += env.FTE.toFixed(2) + ',';
 
                 }
-                if (env.time > 500.1 || ( env.time > 50 && env.FTE < 0.05)){
+                if (env.time > 1000.1 || ( env.time > 50 && env.FTE < 0.0001)){
                     env.march_can_go = false;
                     env.running = false;
                     env.initialize();
@@ -1151,18 +1151,19 @@ function run(){
                     } else {    
                         env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + "_omega" + omega_lst[omega_idx] + '\n';
 
+
                         env.omega = omega_lst[omega_idx];
                         efmap.uniforms['omega'].value = env.omega;
                         env.Emax = Emax_lst[Emax_idx];
                         efmap.uniforms['Emax'].value = env.Emax;
                         efmap.render();
                         loadICFromURL(IC_name_list[env.IC_idx])
-                        env.march_can_go = true;
                         
                         console.log('Starting IC' + env.IC_idx + ' and Emax ' + env.Emax);
                         // sleep for a while then resume
                         setTimeout(() => {
                             env.running = true;
+                            env.march_can_go = true;
                         }, 1000); // wait 1000ms before resuming
                     }
                     
