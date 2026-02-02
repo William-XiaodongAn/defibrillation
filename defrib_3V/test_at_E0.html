@@ -1070,8 +1070,11 @@ var loading = false;
 
 omega_lst = [0,50,100]; //[0,50,100];
 omega_idx = 0;
-Emax_lst = [30,40]; //[0,20,40,60,80,100,120,140,160,180,200];
+Emax_lst = [50]; //[0,20,40,60,80,100,120,140,160,180,200];
 Emax_idx = 0;
+E_timeact_lst = [20,30,40,50,60,70,80,90];
+E_timeact_idx = 0;
+
 
 const IC_dont_use = [];
 
@@ -1090,7 +1093,11 @@ function advanceCombination(){
             Emax_idx = 0;
             omega_idx += 1;
             if (omega_idx >= omega_lst.length){
-                return false; // all combinations done
+                omega_idx = 0;
+                E_timeact_idx += 1;
+                if (E_timeact_idx >= E_timeact_lst.length){
+                    return false; // all combinations done
+                }
             }
         }
     }
@@ -1105,8 +1112,10 @@ env.march_can_go = true;
 
 env.omega = omega_lst[omega_idx];
 env.Emax = Emax_lst[Emax_idx];
+env.Etimeact = E_timeact_lst[E_timeact_idx];
 efmap.uniforms['omega'].value = env.omega;
 efmap.uniforms['Emax'].value = env.Emax;
+efmap.uniforms['Etimeact'].value = env.Etimeact;
 efmap.render() ;
 loadMaskFromURL('mask_1024_1_16000.csv')
 loadEMapFromURL('Emask1024circ_20cm.csv')
@@ -1149,13 +1158,15 @@ function run(){
                         saveCsvFile(env.FTE_test, 'FTE_results_etimeact_' + env.Etimeact);   
                         // keep env.running false to stop the loop
                     } else {    
-                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + "_omega" + omega_lst[omega_idx] + '\n';
+                        env.FTE_test += '\n' + 'IC' + env.IC_idx + '_Emax' + Emax_lst[Emax_idx] + "_omega" + omega_lst[omega_idx] + "_Etimeact" + E_timeact_lst[E_timeact_idx] + '\n';
 
 
                         env.omega = omega_lst[omega_idx];
                         efmap.uniforms['omega'].value = env.omega;
                         env.Emax = Emax_lst[Emax_idx];
                         efmap.uniforms['Emax'].value = env.Emax;
+                        env.Etimeact = E_timeact_lst[E_timeact_idx];
+                        efmap.uniforms['Etimeact'].value = env.Etimeact;
                         efmap.render();
                         loadICFromURL(IC_name_list[env.IC_idx])
                         
